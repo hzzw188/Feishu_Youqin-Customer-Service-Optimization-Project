@@ -1,0 +1,219 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* 主色：纯净品牌蓝 */
+  --primary: #2563EB;
+  --primary-deep: #1E40AF;
+  --primary-soft: #EFF4FF;
+  --primary-tint: #DBEAFE;
+  /* 状态色 */
+  --success: #10B981;
+  --success-soft: #ECFDF5;
+  --warning: #F59E0B;
+  --warning-soft: #FFFBEB;
+  --danger: #EF4444;
+  --danger-soft: #FEF2F2;
+  --purple: #8B5CF6;
+  --purple-soft: #F5F3FF;
+  --teal: #14B8A6;
+  --teal-soft: #F0FDFA;
+  /* 中性色：纯白底 + 冷灰线 */
+  --bg: #FFFFFF;
+  --bg-page: #FFFFFF;
+  --bg-panel: #FFFFFF;
+  --bg-gray: #F7F8FA;
+  --bg-bubble-customer: #FFFFFF;
+  --bg-bubble-agent: #2563EB;
+  --border-gray: rgba(15, 23, 42, 0.08);
+  --border-soft: rgba(15, 23, 42, 0.05);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --text-primary: #111827;
+  --text-secondary: #4B5563;
+  --text-tertiary: #9CA3AF;
+  /* 圆角节奏 */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-2xl: 20px;
+  --r-full: 999px;
+  /* 间距节奏 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 2px 8px rgba(15,23,42,0.06);
+  --shadow-lg: 0 4px 16px rgba(15,23,42,0.08);
+  /* 动效 */
+  --ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-soft: cubic-bezier(0.2, 0, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html, body, #app {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.35); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.6); }
+
+/* ============ Element Plus overrides ============ */
+.el-button--primary {
+  --el-button-bg-color: var(--primary);
+  --el-button-border-color: var(--primary);
+  --el-button-hover-bg-color: var(--primary-deep);
+  --el-button-hover-border-color: var(--primary-deep);
+  --el-button-active-bg-color: var(--primary-deep);
+  --el-button-active-border-color: var(--primary-deep);
+  --el-button-font-weight: 500;
+  border-radius: var(--r-lg) !important;
+}
+
+.el-button {
+  border-radius: var(--r-lg) !important;
+  transition: transform 0.12s var(--ease-out), box-shadow 0.12s var(--ease-out), background-color 0.15s var(--ease-soft), border-color 0.15s var(--ease-soft);
+}
+.el-button:not(.is-disabled):not(.is-text):not(.is-link):active {
+  transform: translateY(1px);
+}
+
+.el-button--primary.is-link,
+.el-button--primary.is-text {
+  --el-button-text-color: var(--primary);
+  --el-button-hover-link-text-color: var(--primary-deep);
+}
+
+.el-tag--primary {
+  --el-tag-bg-color: var(--primary-soft);
+  --el-tag-border-color: transparent;
+  --el-tag-text-color: var(--primary);
+}
+
+.el-progress-bar__inner { background-color: var(--primary) !important; }
+
+.el-input__wrapper {
+  border-radius: var(--r-lg) !important;
+  box-shadow: 0 0 0 1px var(--border-gray) inset !important;
+}
+.el-input__wrapper:hover,
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--primary) inset !important;
+}
+
+/* ============ Brand Logo ============ */
+.logo-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.3px;
+  color: #111827;
+}
+
+.btn-click:active { transform: scale(0.98); transition: transform 0.1s; }
+
+.slide-in {
+  animation: slideIn 0.25s var(--ease-soft);
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pulse-dot {
+  animation: pulse 2.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* 聊天区背景：纯净浅灰，无纹理 */
+.chat-bg {
+  background: var(--bg-gray);
+}
+
+/* ============ 通用标签（和设计稿一致：胶囊圆角） ============ */
+.tag-xs {
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 2px 10px;
+  border-radius: var(--r-full);
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid transparent;
+}
+.tag-sm {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+}
+
+.tag-danger { background: var(--danger-soft); color: var(--danger); }
+.tag-warning { background: var(--warning-soft); color: var(--warning); }
+.tag-success { background: var(--success-soft); color: var(--success); }
+.tag-primary { background: var(--primary-soft); color: var(--primary); }
+.tag-purple  { background: var(--purple-soft);  color: var(--purple); }
+.tag-teal    { background: var(--teal-soft);    color: var(--teal); }
+.tag-gray    { background: var(--bg-gray);      color: var(--text-secondary); border-color: var(--border-gray); }
+
+/* 带边框的标签 */
+.tag-outline-danger { color: var(--danger); border-color: var(--danger); background: #fff; }
+.tag-outline-primary { color: var(--primary); border-color: var(--primary); background: #fff; }
+
+/* 分隔线 */
+.h-divider { height: 1px; background: var(--border-gray); width: 100%; }
+.v-divider { width: 1px; background: var(--border-gray); height: 100%; }
+
+/* 成功对勾动画 */
+.checkmark-draw {
+  display: inline-block;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--success);
+  position: relative;
+  animation: check-pop 0.3s var(--ease-out);
+}
+.checkmark-draw::after {
+  content: '';
+  position: absolute;
+  left: 6px; top: 3px;
+  width: 5px; height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  animation: check-draw 0.3s 0.1s var(--ease-out) both;
+}
+@keyframes check-pop {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes check-draw {
+  from { height: 0; }
+  to { height: 10px; }
+}
