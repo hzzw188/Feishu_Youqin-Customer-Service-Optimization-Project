@@ -2,10 +2,10 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "python3 -m pip install -r backend/requirements.txt"
+    "buildCommand": "python3 -m venv venv && venv/bin/pip install -r backend/requirements.txt"
   },
   "deploy": {
-    "startCommand": "PYTHONPATH=backend python3 -m uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "PYTHONPATH=backend venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT",
     "restartPolicyType": "ON_FAILURE"
   }
 }
