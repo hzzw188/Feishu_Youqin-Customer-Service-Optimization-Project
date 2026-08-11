@@ -557,10 +557,13 @@ async function openFeishuDialog() {
   await fetchFeishuStatus()
 }
 
+// 飞书 API 基础路径：云部署用 VITE_API_BASE，本地开发用 /api
+const apiBase = import.meta.env.VITE_API_BASE || '/api'
+
 async function fetchFeishuStatus() {
   feishuLoading.value = true
   try {
-    const res = await fetch('/api/feishu/status')
+    const res = await fetch(`${apiBase}/feishu/status`)
     feishuStatus.value = await res.json()
   } catch (e) {
     feishuStatus.value = { configured: false, mode: 'mock', message: '后端服务未启动' }
@@ -572,7 +575,7 @@ async function fetchFeishuStatus() {
 async function initBitable() {
   initLoading.value = true
   try {
-    const res = await fetch('/api/feishu/bitable/init-browser')
+    const res = await fetch(`${apiBase}/feishu/bitable/init-browser`)
     const data = await res.json()
     if (data.success) {
       ElMessage.success(`✅ ${data.message}`)
@@ -593,7 +596,7 @@ async function syncAll() {
   syncLoading.value = true
   syncResult.value = null
   try {
-    const res = await fetch('/api/feishu/bitable/sync-all-browser')
+    const res = await fetch(`${apiBase}/feishu/bitable/sync-all-browser`)
     syncResult.value = await res.json()
     if (syncResult.value.success) {
       ElMessage.success(syncResult.value.message || '同步完成')
