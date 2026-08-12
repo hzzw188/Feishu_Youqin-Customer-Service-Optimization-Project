@@ -2,7 +2,7 @@
 
 客服工作台 + 客户端 + 利润驾驶舱 + 飞书多维表格对接的演示项目。
 
-内置账号登录、AI 智能问答、物流轨迹追踪、数据驾驶舱、客户端咨询与飞书多维表格同步，覆盖客服全流程。
+内置账号登录、AI 智能问答、物流轨迹追踪、数据驾驶舱、客户端咨询、营收贡献测算与飞书多维表格同步，覆盖客服全流程。
 
 ## 技术栈
 
@@ -13,43 +13,51 @@
 - 物流：模拟物流 API（轨迹查询、催件、状态推进）
 - 认证：用户名/密码注册登录（pbkdf2_hmac 加密）
 - 飞书：多维表格读写（用户、商品、会话、订单、客服动作、结果事件、聊天消息、KPI 共8张表）
+- 营收测算：基于《客户价值视角的电商客服营收贡献测算模型》的基准差额法
 
 ## 目录结构
 
 ```
 cs_dome/
-├── backend/                # 后端
+├── backend/                    # 后端
 │   ├── app/
-│   │   ├── main.py         # 入口（启动时自动创建测试账号 admin/password）
-│   │   ├── database.py     # 数据库连接
-│   │   ├── models.py       # 表结构（Session/Message/Order/LogisticsTrack/Reply/User 等 10 张表）
-│   │   ├── routers/        # API 路由
-│   │   │   ├── auth.py     # 注册/登录/用户名检查
-│   │   │   ├── sessions.py # 会话/消息管理
-│   │   │   ├── ai.py       # AI 分析、模拟客户、生成话术
-│   │   │   ├── logistics.py# 物流轨迹查询、催件、状态推进
-│   │   │   ├── cockpit.py  # 利润驾驶舱数据
-│   │   │   ├── platforms.py# 平台订单/商品数据
-│   │   │   └── feishu.py   # 飞书多维表格对接
+│   │   ├── main.py             # 入口（启动时自动创建测试账号 admin/password）
+│   │   ├── database.py         # 数据库连接
+│   │   ├── models.py           # 表结构（Session/Message/Order/LogisticsTrack/Reply/User 等）
+│   │   ├── routers/            # API 路由
+│   │   │   ├── auth.py         # 注册/登录/用户名检查
+│   │   │   ├── sessions.py     # 会话/消息管理
+│   │   │   ├── ai.py           # AI 分析、模拟客户、生成话术
+│   │   │   ├── logistics.py    # 物流轨迹查询、催件、状态推进
+│   │   │   ├── cockpit.py      # 利润驾驶舱数据
+│   │   │   ├── platforms.py    # 平台订单/商品数据
+│   │   │   ├── customer.py     # 客户端接口（售前/售后咨询、下单/已解决）
+│   │   │   └── feishu.py       # 飞书多维表格对接
 │   │   └── services/
 │   │       ├── deepseek_service.py  # DeepSeek + 提示词工程
 │   │       ├── knowledge_base.py    # RAG 知识库
-│   │       └── logistics_service.py # 物流状态机与轨迹生成
-│   ├── .env.example        # 环境变量模板
-│   ├── init_db.py          # 初始化数据库（8个示例会话）
-│   ├── requirements.txt    # Python 依赖
-│   └── youqin_cs.db        # SQLite 数据库（首次运行自动生成）
-└── frontend/               # 前端
-    ├── src/
-    │   ├── views/
-    │   │   ├── Login.vue       # 登录/注册页
-    │   │   ├── Workbench.vue   # 客服工作台
-    │   │   ├── Cockpit.vue     # 利润驾驶舱
-    │   │   └── Server.vue      # 客户端（免登录）
-    │   ├── stores/             # Pinia 状态管理（含会话缓存）
-    │   ├── router/             # 路由守卫（未登录跳登录页）
-    │   └── api/                # 后端接口封装
-    └── package.json
+│   │       ├── logistics_service.py # 物流状态机与轨迹生成
+│   │       └── revenue_service.py   # 营收贡献测算（基准差额法）
+│   ├── .env.example            # 环境变量模板
+│   ├── init_db.py              # 初始化数据库（8个示例会话）
+│   ├── requirements.txt        # Python 依赖
+│   └── youqin_cs.db            # SQLite 数据库（首次运行自动生成）
+├── frontend/                   # 前端
+│   ├── src/
+│   │   ├── views/
+│   │   │   ├── Login.vue       # 登录/注册页
+│   │   │   ├── Workbench.vue   # 客服工作台
+│   │   │   ├── Cockpit.vue     # 利润驾驶舱
+│   │   │   └── Server.vue      # 客户端（免登录）
+│   │   ├── stores/             # Pinia 状态管理（含会话缓存）
+│   │   ├── router/             # 路由守卫（未登录跳登录页）
+│   │   └── api/                # 后端接口封装
+│   ├── _redirects              # Cloudflare Pages SPA 路由回退
+│   ├── _headers                # Cloudflare Pages 安全头
+│   └── package.json
+├── railway.json                # Railway 后端部署配置
+├── nixpacks.toml               # Nixpacks 构建配置
+└── .github/workflows/          # GitHub Actions 自动部署
 ```
 
 ## 环境准备
@@ -169,13 +177,6 @@ npm run dev
 Local: http://localhost:5174/
 ```
 
-> 生产预览模式（cpolar 内网穿透时推荐）：
-> ```bash
-> npm run build
-> npm run preview
-> ```
-> 同样监听 5174 端口，关闭 HMR，改代码后需重新 build。
-
 ### 访问应用
 
 浏览器打开：http://localhost:5174/
@@ -229,20 +230,24 @@ http://localhost:5174/server
 - **关联订单**：展示该客户最近订单及状态（含物流状态、快递单号、承运商）
 - **创建工单**：底部操作栏紫色「创建工单」按钮，弹窗填写工单标题/类型/优先级/处理人/关联订单/问题描述，自动填充会话信息
 - **底部操作**：创建工单 / 标记风险并升级 / 结束会话并归档（归档后自动停止消息轮询）
-- **清空记录**：清空当前会话的所有消息和 AI 分析数据（同时清空 AI 回复内容）
+- **清空记录**：清空当前会话的所有消息和 AI 分析数据（同时清空 AI 回复内容和推荐话术）
 - **流畅切换**：切换客户会话时采用缓存 + 预取机制，聊天记录和 AI 推荐话术持久化，秒出切换；切换时自动重置 AI 思考状态，避免动画错乱
 
 ### 利润驾驶舱
 
-- **KPI 指标**：4 项核心指标卡片（AI自助解决率、AI接待数、AI自动回答数、覆盖率），紧凑布局节省空间
+- **KPI 指标**：4 项核心指标卡片
+  - 💰 客服总营收贡献：基于基准差额法汇总（售前转化 + 退款挽回）
+  - 🤖 AI贡献值：AI 自助接待的会话贡献总额及占比
+  - 😊 客户满意度：基于会话状态计算的满意率
+  - ⚡ AI响应效率：AI 自动回答比例
 - **趋势图表**：近7日会话量柱状图 + AI解决率折线图（双轴综合）
-- **Top 高频问题**：基于真实会话意图统计（最多5项），带进度条和排名徽章
-- **用户意图分布**：Top 5 问题分类饼图式条形展示
-- **用户满意度分布**：满意度分级统计 + 整体满意率
-- **会话时段分布**：基于真实会话创建时间统计 9-21 点的会话分布直方图（非模拟数据）
-- **归因明细表**：客服动作归因，含 A/B 对照标记、置信度、增量价值
+- **AI 与人工价值互补结构**：环形饼图，展示 AI 转化 / AI 挽回 / 人工转化 / 人工挽回四维价值拆解，带金额和百分比标签
+- **用户意图分布**：Top 5 问题分类条形展示
+- **售前转化价值**：售前会话成交转化贡献总额、贡献会话数、均会话贡献、Top 5 转化会话明细
+- **会话时段分布**：基于真实会话创建时间统计 0-23 点全时段分布直方图
+- **归因明细表**：客服动作归因（AI归因/人工归因），含置信度、增量价值、A/B 对照标记
 - **自动刷新**：每 30 秒自动刷新数据并更新时间戳；切换时间周期（30天/7天/今天/618）立即刷新
-- **同步到飞书**：一键将数据同步到飞书多维表格（8张表并行同步，耗时约 5-8 秒），对话框显示8张同步表横向布局
+- **同步到飞书**：一键将数据同步到飞书多维表格（8张表并行同步）
 
 ### 客户端（免登录）
 
@@ -254,7 +259,23 @@ http://localhost:5174/server
 - **关联提问**：聊天页输入框上方提供 6 条关联提问复选框（售前/售后各6条），勾选后自动填入输入框
 - **AI 思考动画**：发送消息后显示三点跳动思考动画，随后显示 AI 回复
 - **AI 回复置信度**：客户端触发的 AI 自动回答同样带置信度标签（与工作台逻辑一致，后端存储快照）
+- **乐观更新**：发送消息后立即本地显示气泡，后端响应后替换为真实消息，避免卡顿感
 - **售前/售后高亮**：选中售前或售后选项卡时显示蓝色高亮边框
+- **🛒 下单按钮**（售前）：点击「我下单了」标记成交，计算客服转化贡献 Vconv，显示系统消息
+- **✅ 已解决按钮**（售后）：点击「问题已解决」标记挽回，计算退款挽回贡献 Vretain，显示系统消息
+
+### 营收贡献测算模型
+
+基于《客户价值视角的电商客服营收贡献测算模型》PDF 的基准差额法实现：
+
+| 价值类型 | 公式 | 触发条件 | 说明 |
+|---------|------|---------|------|
+| 售前转化 Vconv | (1 - p) × GMV | 客户点击「下单」 | p=基准成交概率（意图/情绪/客群加权） |
+| 退款挽回 Vretain | (q - r) × GMV | 售后客户点击「已解决」 | q=基准退款概率，r=实际退款比例 |
+| 复购增量 Vrep | 0 | 预留 | 需 90 天消费跟踪 |
+| VOC 信息价值 Vvoc | 0 | 预留 | 需工单确认流程 |
+
+核心测算模块：[app/services/revenue_service.py](backend/app/services/revenue_service.py)，供客户下单接口和驾驶舱 KPI 共用。
 
 ### 飞书多维表格对接
 
@@ -314,6 +335,41 @@ http://localhost:5174/server
 ```
 
 删除飞书多维表格中的所有数据表（慎用）。
+
+## 部署指南
+
+### 后端部署到 Railway
+
+1. 在 [Railway](https://railway.com/) 创建新项目，选择「Deploy from GitHub repo」
+2. 连接此 GitHub 仓库，Railway 会自动检测 `railway.json` 构建
+3. 在 Railway 项目设置中添加环境变量：
+   - `DEEPSEEK_API_KEY` - DeepSeek API Key（必填）
+   - `FEISHU_APP_ID` / `FEISHU_APP_SECRET` - 飞书凭证（选填）
+4. Railway 自动生成域名如 `https://xxx.up.railway.app`
+5. 后端 API 地址为 `https://xxx.up.railway.app/api`
+
+### 前端部署到 Cloudflare Pages
+
+#### 方式一：GitHub Actions 自动部署（推荐）
+
+1. 在 [Cloudflare 控制台](https://dash.cloudflare.com/) 获取 API Token 和 Account ID
+2. 在 GitHub 仓库 Settings → Secrets 添加：
+   - `CLOUDFLARE_API_TOKEN` - Cloudflare API Token
+   - `CLOUDFLARE_ACCOUNT_ID` - Cloudflare Account ID
+3. 在 Cloudflare Pages 创建项目 `youqin-cs`
+4. 推送代码到 master 分支，GitHub Actions 自动构建并部署
+
+#### 方式二：Cloudflare Pages 直连 GitHub
+
+1. 登录 [Cloudflare Pages](https://pages.cloudflare.com/)，点击「Create a project」
+2. 连接 GitHub 仓库，选择此仓库
+3. 构建设置：
+   - **Build command**: `cd frontend && npm ci && npm run build`
+   - **Build output directory**: `/frontend/dist`
+   - **Environment variable**: `VITE_API_BASE` = Railway 后端 URL（如 `https://xxx.up.railway.app/api`）
+4. 点击「Save and Deploy」
+
+项目已内置 `frontend/_redirects`（SPA 路由回退）和 `frontend/_headers`（安全头），Cloudflare Pages 自动识别。
 
 ## 常见问题
 
@@ -389,6 +445,10 @@ kill -9 进程ID
 ### Q: 切换会话卡顿
 
 项目已内置会话缓存与预取机制（首次加载后 60 秒内切换免请求）。如仍卡顿，检查后端响应速度，或清理浏览器缓存后刷新。
+
+### Q: 驾驶舱暂无数据
+
+驾驶舱数据基于真实会话和消息实时计算。前往客服工作台或客户端发起会话后，驾驶舱会自动展示数据。营收贡献值需在客户端点击「下单」或「已解决」按钮后才会产生。
 
 ## 停止服务
 

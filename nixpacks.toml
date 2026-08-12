@@ -1,2 +1,6 @@
 [phases.setup]
 aptPkgs = ["python3", "python3-pip", "python3-venv"]
+
+[phases.install]
+# 确保使用 Python 3.12+
+cmds = ["python3 --version"]

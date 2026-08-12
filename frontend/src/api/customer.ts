@@ -13,6 +13,7 @@ export interface Product {
   spec: string
   scenes: string
   desc: string
+  questions?: string[]
 }
 
 /** 客户历史订单 */
@@ -64,6 +65,25 @@ export interface SendResp {
   }
 }
 
+/** 营收贡献（基于客户价值视角测算模型） */
+export interface Contribution {
+  gmv: number
+  base_convert_prob: number
+  base_refund_prob: number
+  conv: number
+  retain: number
+  total: number
+}
+
+/** 下单/已解决 标记返回 */
+export interface ActionResp {
+  already_deal?: boolean
+  already_resolved?: boolean
+  message: CustomerMessage | null
+  session?: { deal_amount?: number; resolved?: number; contrib_total?: number }
+  contribution: Contribution
+}
+
 export const customerAPI = {
   /** 获取商品列表 */
   getProducts() {
@@ -99,5 +119,13 @@ export const customerAPI = {
   /** 客户发送消息 */
   send(sessionId: number, data: { text: string }) {
     return api.post(`/customer/${sessionId}/send`, data) as Promise<SendResp>
+  },
+  /** 售前：客户下单（标记成交，计算客服转化贡献） */
+  placeOrder(sessionId: number) {
+    return api.post(`/customer/${sessionId}/place-order`) as Promise<ActionResp>
+  },
+  /** 售后：问题已解决（标记挽回，计算退款挽回贡献） */
+  resolveIssue(sessionId: number) {
+    return api.post(`/customer/${sessionId}/resolve`) as Promise<ActionResp>
   },
 }

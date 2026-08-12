@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from collections import Counter
 from app.database import get_db
 from app.models import Session as SessionModel, Message, Order
+from app.services.revenue_service import parse_price
 
 router = APIRouter(prefix="/api/cockpit", tags=["cockpit"])
 
@@ -74,11 +75,49 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
     total_orders = len(all_orders)
     total_order_value = 0
     for o in all_orders:
-        try:
-            val = float(o.price.replace("¥", "").replace(",", ""))
-            total_order_value += val
-        except:
-            pass
+        total_order_value += parse_price(o.price)
+
+    # ====== 营收贡献（基于《客户价值视角的电商客服营收贡献测算模型》快照汇总） ======
+    # 单会话贡献由客户在客户端点击"下单/已解决"时触发计算并写入 Session 快照
+    total_contrib = round(sum(s.contrib_total or 0 for s in sessions), 2)
+    vconv_total = round(sum(s.contrib_conv or 0 for s in sessions), 2)
+    vretain_total = round(sum(s.contrib_retain or 0 for s in sessions), 2)
+    contrib_session_count = sum(1 for s in sessions if (s.contrib_total or 0) > 0)
+    ai_contrib = round(sum((s.contrib_total or 0) for s in sessions if s.tab == "ai"), 2)
+    ai_contrib_count = sum(1 for s in sessions if s.tab == "ai" and (s.contrib_total or 0) > 0)
+    ai_contrib_rate = round(ai_contrib / total_contrib * 100, 1) if total_contrib else 0
+
+    # ====== AI vs 人工价值互补结构（饼图数据） ======
+    ai_conv = round(sum(s.contrib_conv or 0 for s in sessions if s.tab == "ai"), 2)
+    ai_retain = round(sum(s.contrib_retain or 0 for s in sessions if s.tab == "ai"), 2)
+    human_conv = round(sum(s.contrib_conv or 0 for s in sessions if s.tab != "ai"), 2)
+    human_retain = round(sum(s.contrib_retain or 0 for s in sessions if s.tab != "ai"), 2)
+    value_comparison = {
+        "ai_total": round(ai_conv + ai_retain, 2),
+        "human_total": round(human_conv + human_retain, 2),
+        "ai_conv": ai_conv,
+        "ai_retain": ai_retain,
+        "human_conv": human_conv,
+        "human_retain": human_retain,
+    }
+
+    # ====== 售前转化价值（替换原满意度分布卡） ======
+    conv_sessions = [s for s in sessions if (s.contrib_conv or 0) > 0]
+    conv_sessions.sort(key=lambda x: x.contrib_conv or 0, reverse=True)
+    conversion_value = {
+        "total": vconv_total,
+        "session_count": len(conv_sessions),
+        "avg_per_session": round(vconv_total / len(conv_sessions), 2) if conv_sessions else 0,
+        "top_sessions": [
+            {
+                "session_id": f"#SES-{s.id:04d}",
+                "name": s.user_name or "未知",
+                "amount": round(s.contrib_conv or 0, 2),
+                "gmvs": round(s.deal_amount or 0, 2),
+            }
+            for s in conv_sessions[:5]
+        ],
+    }
 
     # ====== 统计意图分布（Top问题） ======
     intent_counter = Counter()
@@ -132,10 +171,10 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
             "ai_resolve_rate": ai_resolve_rate,
         })
 
-    # ====== 会话时段分布（按小时统计，9-21点） ======
+    # ====== 会话时段分布（按小时统计，0-23点全时段） ======
     # 用 time 字段（工作台显示的 "HH:MM"）统计，和工作台展示一致；
     # time 为空时回退到 created_at
-    hour_range = list(range(9, 22))  # 9~21 点
+    hour_range = list(range(0, 24))  # 0~23 点
     hour_counts = {h: 0 for h in hour_range}
     for s in sessions:
         hour = None
@@ -159,55 +198,48 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
         for h in hour_range
     ]
 
-    # ====== 归因明细（基于真实AI回答和订单） ======
+    # ====== 归因明细（基于客户价值视角模型的真实贡献值） ======
+    # 优先展示有营收贡献的会话（按贡献降序），再补充待转化会话，共 10 条
     attributions = []
-    for s in sessions[:10]:
-        # 检查是否有AI回答消息
-        ai_msgs = [m for m in all_messages if m.session_id == s.id and m.type == "ai"]
+    contrib_sessions = [s for s in sessions if (s.contrib_total or 0) > 0]
+    contrib_sessions.sort(key=lambda x: x.contrib_total or 0, reverse=True)
+    pending_sessions = [
+        s for s in sessions
+        if not (s.contrib_total or 0) and any(o.session_id == s.id for o in all_orders)
+    ]
+    for s in (contrib_sessions + pending_sessions)[:10]:
         orders = [o for o in all_orders if o.session_id == s.id]
+        order_val = sum(parse_price(o.price) for o in orders)
+        contrib = s.contrib_total or 0
+        vconv = s.contrib_conv or 0
+        vretain = s.contrib_retain or 0
 
-        if ai_msgs and orders:
-            # 有AI回答且有订单 → 归因
-            order_val = 0
-            try:
-                order_val = sum(float(o.price.replace("¥", "").replace(",", "")) for o in orders)
-            except:
-                pass
+        if contrib > 0:
+            # 已有真实贡献快照（客户点击下单/已解决触发）
+            parts = []
+            if vconv:
+                parts.append(f"转化+¥{vconv:.1f}")
+            if vretain:
+                parts.append(f"挽回+¥{vretain:.1f}")
             attributions.append({
                 "session_id": f"#SES-{s.id:04d}",
-                "event_type": "下单",
+                "event_type": "成交" if s.is_deal else "售后解决",
                 "event_amount": f"¥{order_val:.0f}",
                 "attrib_window": "会话内",
-                "confidence": "高" if ai_msgs else "中",
-                "increment_value": f"+¥{order_val * 0.3:.0f}",
-                "group": "实验组",
+                "confidence": "高",
+                "increment_value": f"+¥{contrib:.1f}（{'、'.join(parts)}）",
+                "group": "AI归因" if s.tab == "ai" else "人工归因",
             })
-        elif ai_msgs and not orders:
-            # 有AI回答但没下单 → 加购意向
+        else:
+            # 有订单但未触发贡献计算 → 待转化
             attributions.append({
                 "session_id": f"#SES-{s.id:04d}",
                 "event_type": "咨询",
-                "event_amount": "-",
+                "event_amount": f"¥{order_val:.0f}",
                 "attrib_window": "会话内",
                 "confidence": "中",
                 "increment_value": "待转化",
                 "group": "实验组",
-            })
-        elif not ai_msgs and orders:
-            # 无AI回答但有订单 → 对照组
-            order_val = 0
-            try:
-                order_val = sum(float(o.price.replace("¥", "").replace(",", "")) for o in orders)
-            except:
-                pass
-            attributions.append({
-                "session_id": f"#SES-{s.id:04d}",
-                "event_type": "下单",
-                "event_amount": f"¥{order_val:.0f}",
-                "attrib_window": "自然转化",
-                "confidence": "低",
-                "increment_value": f"¥{order_val:.0f}",
-                "group": "对照组",
             })
 
     # ====== CSAT 满意度分布（基于真实会话状态推算） ======
@@ -245,29 +277,38 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
     csat_score = round((very_good + good) / total_sessions * 100, 1) if total_sessions else 0
 
     # ====== KPI（4项，一行展示） ======
+    # KPI 描述：只展示有数值的价值项，避免"退款挽回 ¥0"这类冗余
+    desc_parts = []
+    if vconv_total:
+        desc_parts.append(f"售前转化 ¥{vconv_total:.0f}")
+    if vretain_total:
+        desc_parts.append(f"退款挽回 ¥{vretain_total:.0f}")
+    if not desc_parts:
+        desc_parts.append("暂无贡献数据，等待客户下单/解决")
+
     kpis = [
         {
             "id": 1,
-            "name": "🤖 AI自助解决率",
-            "icon": "🤖",
-            "value": str(ai_resolve_rate),
-            "unit": "%",
-            "trend_text": f"AI接待 {ai_count} / 共 {total_sessions}",
+            "name": "💰 客服总营收贡献",
+            "icon": "💰",
+            "value": f"¥{total_contrib:.0f}",
+            "unit": "",
+            "trend_text": f"贡献会话 {contrib_session_count} 个",
             "trend_class": "bg-green-50 text-success",
-            "desc": f"AI自动回答 {ai_answer_count} 条，覆盖率 {auto_answer_rate}%",
-            "progress": ai_resolve_rate,
+            "desc": " · ".join(desc_parts),
+            "progress": 100,
             "progress_color": "bg-success",
         },
         {
             "id": 2,
-            "name": "💬 总会话数",
-            "icon": "💬",
-            "value": str(total_sessions),
-            "unit": "个",
-            "trend_text": f"消息 {total_messages} 条",
+            "name": "🤖 AI贡献值",
+            "icon": "🤖",
+            "value": f"¥{ai_contrib:.0f}",
+            "unit": "",
+            "trend_text": f"AI自助会话 {ai_contrib_count} 个",
             "trend_class": "bg-blue-50 text-primary",
-            "desc": f"客户消息 {len(user_messages)} 条 · AI回答 {ai_answer_count} 条",
-            "progress": 0,
+            "desc": f"占客服总贡献 {ai_contrib_rate}%",
+            "progress": ai_contrib_rate,
             "progress_color": "bg-primary",
         },
         {
@@ -303,4 +344,6 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
         "attributions": attributions,
         "csat": csat_rows,
         "hourly": hourly,
+        "value_comparison": value_comparison,
+        "conversion_value": conversion_value,
     }

@@ -316,6 +316,36 @@
           </div>
         </div>
 
+        <!-- 售前/售后结果操作条：下单 / 已解决（驱动营收贡献测算） -->
+        <div v-if="sessionId !== null && formType" class="result-action-bar">
+          <template v-if="formType === 'pre-sale'">
+            <el-button
+              type="success"
+              round
+              :icon="ShoppingCart"
+              :loading="actionLoading"
+              :disabled="dealDone"
+              @click="placeOrder"
+            >{{ dealDone ? '已下单 ✓' : '🛒 我下单了' }}</el-button>
+            <span v-if="dealDone && lastConv > 0" class="result-tip">
+              客服转化贡献 +¥{{ lastConv.toFixed(1) }}
+            </span>
+          </template>
+          <template v-else>
+            <el-button
+              type="success"
+              round
+              :icon="CircleCheck"
+              :loading="actionLoading"
+              :disabled="resolvedDone"
+              @click="resolveIssue"
+            >{{ resolvedDone ? '已解决 ✓' : '✅ 问题已解决' }}</el-button>
+            <span v-if="resolvedDone && lastRetain > 0" class="result-tip">
+              客服挽回贡献 +¥{{ lastRetain.toFixed(1) }}
+            </span>
+          </template>
+        </div>
+
         <footer class="input-area">
           <el-input
             v-model="inputText"
@@ -347,6 +377,8 @@ import {
   Goods,
   Van,
   Promotion,
+  ShoppingCart,
+  CircleCheck,
 } from '@element-plus/icons-vue'
 import {
   customerAPI,
@@ -390,6 +422,13 @@ const inputText = ref('')
 const sending = ref(false)
 const thinking = ref(false)
 const msgListRef = ref<HTMLElement | null>(null)
+
+// ===== 营收贡献操作（售前下单 / 售后已解决） =====
+const actionLoading = ref(false)
+const dealDone = ref(false)
+const resolvedDone = ref(false)
+const lastConv = ref(0)
+const lastRetain = ref(0)
 let pollTimer: number | null = null
 let orderDebounce: number | null = null
 let historyDebounce: number | null = null
@@ -411,9 +450,13 @@ const AFTER_SALE_QUESTIONS = [
   '能修改收货地址吗？',
   '需要开发票，怎么操作？',
 ]
-const currentQuestions = computed(() =>
-  formType.value === 'pre-sale' ? PRE_SALE_QUESTIONS : AFTER_SALE_QUESTIONS,
-)
+const currentQuestions = computed(() => {
+  // 如果选中了商品且有商品专属提问，用商品专属提问
+  if (selectedProduct.value?.questions?.length) {
+    return selectedProduct.value.questions
+  }
+  return formType.value === 'pre-sale' ? PRE_SALE_QUESTIONS : AFTER_SALE_QUESTIONS
+})
 const checkedQuestion = ref<string>('')
 
 /** 勾选关联提问：填入输入框（单选切换） */
@@ -554,6 +597,11 @@ async function startChat() {
     sessionId.value = resp.session_id
     messages.value = []
     knownIds.clear()
+    // 重置营收贡献操作状态（每次新会话干净开始）
+    dealDone.value = false
+    resolvedDone.value = false
+    lastConv.value = 0
+    lastRetain.value = 0
     if (resp.welcome_message) {
       messages.value.push(resp.welcome_message)
       knownIds.add(resp.welcome_message.id)
@@ -573,6 +621,21 @@ async function startChat() {
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text || sending.value || sessionId.value === null) return
+
+  // 快照当前 sessionId，防止异步回调中 sessionId 被切换
+  const currentSid = sessionId.value
+
+  // ===== 乐观更新：立即本地追加自己的消息气泡，不等后端响应 =====
+  const tempId = -Date.now()
+  const tempMsg: CustomerMessage = {
+    id: tempId,
+    dir: 'right',
+    text,
+    type: 'user',
+    created_at: new Date().toISOString(),
+  }
+  messages.value.push(tempMsg)
+
   inputText.value = ''
   checkedQuestion.value = ''
   sending.value = true
@@ -580,14 +643,20 @@ async function sendMessage() {
   await nextTick()
   scrollToBottom()
   try {
-    const resp = await customerAPI.send(sessionId.value, { text })
-    if (resp.customer_message && !knownIds.has(resp.customer_message.id)) {
-      messages.value.push(resp.customer_message)
-      knownIds.add(resp.customer_message.id)
+    const resp = await customerAPI.send(currentSid, { text })
+    // 跨会话检测：如果响应返回时用户已切换到其他会话，丢弃结果
+    if (sessionId.value !== currentSid) return
+    // 用后端返回的真实消息替换本地临时气泡
+    if (resp.customer_message) {
+      replaceTempMessage(tempId, resp.customer_message)
+    } else {
+      removeTempMessage(tempId)
     }
     await nextTick()
     scrollToBottom()
     await delay(500)
+    // 再次检查，防止 delay 期间切换了会话
+    if (sessionId.value !== currentSid) return
     thinking.value = false
     if (resp.ai_reply && !knownIds.has(resp.ai_reply.id)) {
       messages.value.push(resp.ai_reply)
@@ -596,12 +665,96 @@ async function sendMessage() {
     await nextTick()
     scrollToBottom()
   } catch (e: any) {
+    if (sessionId.value !== currentSid) return
     thinking.value = false
+    removeTempMessage(tempId)
     const detail = e?.response?.data?.detail || e?.message || '发送失败'
     ElMessage.error(detail)
     inputText.value = text
   } finally {
-    sending.value = false
+    if (sessionId.value === currentSid) {
+      sending.value = false
+    }
+  }
+}
+
+/** 用后端真实消息替换本地临时气泡 */
+function replaceTempMessage(tempId: number, real: CustomerMessage) {
+  const idx = messages.value.findIndex(m => m.id === tempId)
+  if (idx !== -1) {
+    messages.value[idx] = real
+  } else if (!knownIds.has(real.id)) {
+    messages.value.push(real)
+  }
+  knownIds.add(real.id)
+}
+
+/** 移除指定的本地临时气泡（发送失败时） */
+function removeTempMessage(tempId: number) {
+  messages.value = messages.value.filter(m => m.id !== tempId)
+}
+
+/** 移除所有本地临时气泡（id < 0，轮询拉到真实消息前先清理） */
+function removeTempMessages() {
+  if (messages.value.some(m => m.id < 0)) {
+    messages.value = messages.value.filter(m => m.id >= 0)
+  }
+}
+
+/** 追加一条后端消息（去重）并滚动到底部 */
+function appendMessage(m: CustomerMessage) {
+  if (!knownIds.has(m.id)) {
+    messages.value.push(m)
+    knownIds.add(m.id)
+  }
+  nextTick().then(scrollToBottom)
+}
+
+/** 售前：客户下单 → 标记成交并计算客服转化贡献 Vconv */
+async function placeOrder() {
+  if (!sessionId.value || dealDone.value || actionLoading.value) return
+  actionLoading.value = true
+  try {
+    const resp = await customerAPI.placeOrder(sessionId.value)
+    if (resp.already_deal) {
+      dealDone.value = true
+      lastConv.value = resp.contribution.conv
+      ElMessage.info(`该会话已下单，客服转化贡献 +¥${resp.contribution.conv.toFixed(1)}`)
+      return
+    }
+    if (resp.message) appendMessage(resp.message)
+    dealDone.value = true
+    lastConv.value = resp.contribution.conv
+    ElMessage.success(`下单成功！客服转化贡献 +¥${resp.contribution.conv.toFixed(1)}`)
+  } catch (e: any) {
+    const detail = e?.response?.data?.detail || e?.message || '下单失败'
+    ElMessage.error(detail)
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+/** 售后：问题已解决 → 标记挽回并计算退款挽回贡献 Vretain */
+async function resolveIssue() {
+  if (!sessionId.value || resolvedDone.value || actionLoading.value) return
+  actionLoading.value = true
+  try {
+    const resp = await customerAPI.resolveIssue(sessionId.value)
+    if (resp.already_resolved) {
+      resolvedDone.value = true
+      lastRetain.value = resp.contribution.retain
+      ElMessage.info(`该会话已解决，客服挽回贡献 +¥${resp.contribution.retain.toFixed(1)}`)
+      return
+    }
+    if (resp.message) appendMessage(resp.message)
+    resolvedDone.value = true
+    lastRetain.value = resp.contribution.retain
+    ElMessage.success(`售后已解决！客服挽回贡献 +¥${resp.contribution.retain.toFixed(1)}`)
+  } catch (e: any) {
+    const detail = e?.response?.data?.detail || e?.message || '提交失败'
+    ElMessage.error(detail)
+  } finally {
+    actionLoading.value = false
   }
 }
 
@@ -619,8 +772,15 @@ function stopPolling() {
 
 async function pollMessages() {
   if (sessionId.value === null) return
+  const currentSid = sessionId.value
   try {
-    const list = await customerAPI.getMessages(sessionId.value)
+    const list = await customerAPI.getMessages(currentSid)
+    // 跨会话检测：如果轮询返回时已切换到其他会话，丢弃结果
+    if (sessionId.value !== currentSid) return
+    if (list.some(m => !knownIds.has(m.id))) {
+      // 后端已有新消息：先移除本地临时气泡，避免与真实消息重复
+      removeTempMessages()
+    }
     let appended = false
     for (const m of list) {
       if (!knownIds.has(m.id)) {
@@ -1019,6 +1179,17 @@ function formatPrice(price: string | number): string {
   font-size: 12px; color: #374151; line-height: 1.5;
 }
 .qq-item.checked .qq-text { color: #2563EB; font-weight: 500; }
+
+/* ===== 售前/售后结果操作条（下单/已解决） ===== */
+.result-action-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid #eef2f7;
+  background: linear-gradient(90deg, #f0fdf4 0%, #fff 60%);
+}
+.result-tip {
+  font-size: 12px; font-weight: 600; color: #059669;
+}
 
 .input-area {
   display: flex; gap: 8px; align-items: center;

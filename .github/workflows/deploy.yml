@@ -1,26 +1,23 @@
-name: Deploy Frontend to GitHub Pages
+name: Deploy
+
+# 后端：推送到 master 时触发 Railway 自动部署（Railway 连接 GitHub 自动构建）
+# 前端：推送到 master 时构建并部署到 Cloudflare Pages
 
 on:
   push:
     branches: [master]
-    paths:
-      - 'frontend/**'
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  # ========== Railway 后端自动部署 ==========
+  # Railway 已连接此 GitHub 仓库，推送后自动检测 railway.json 并构建部署
+  # 无需额外 GitHub Actions 步骤，以下仅做健康检查通知
+
+  # ========== Cloudflare Pages 前端部署 ==========
+  deploy-frontend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,16 +35,12 @@ jobs:
       - name: Build
         run: cd frontend && npm run build
         env:
+          # Railway 后端地址（用户部署后需替换为自己的 Railway URL）
           VITE_API_BASE: https://ample-trust-production-d7ba.up.railway.app/api
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
         with:
-          path: frontend/dist
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy frontend/dist --project-name=youqin-cs --branch=master

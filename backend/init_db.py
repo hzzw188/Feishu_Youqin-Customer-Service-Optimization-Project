@@ -16,9 +16,37 @@ from datetime import datetime, timedelta
 import random
 
 
+def _ensure_columns():
+    """轻量迁移：create_all 不会给已存在的表补列，这里幂等补齐新增字段"""
+    import sqlalchemy as sa
+    inspector = sa.inspect(engine)
+    add_cols = {
+        "sessions": {
+            "is_deal": "INTEGER DEFAULT 0",
+            "deal_amount": "FLOAT DEFAULT 0",
+            "resolved": "INTEGER DEFAULT 0",
+            "refund_amount": "FLOAT DEFAULT 0",
+            "base_convert_prob": "FLOAT DEFAULT 0",
+            "base_refund_prob": "FLOAT DEFAULT 0",
+            "contrib_conv": "FLOAT DEFAULT 0",
+            "contrib_retain": "FLOAT DEFAULT 0",
+            "contrib_total": "FLOAT DEFAULT 0",
+            "final_handler": "VARCHAR(10) DEFAULT 'ai'",
+        },
+    }
+    with engine.begin() as conn:
+        for table, cols in add_cols.items():
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in cols.items():
+                if name not in existing:
+                    conn.execute(sa.text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 def init_db():
     # 创建所有表（保留 cockpit_* 表结构以兼容旧数据，但不再初始化数据）
     Base.metadata.create_all(bind=engine)
+    # 补齐已存在表的新增字段（幂等）
+    _ensure_columns()
     db = SessionLocal()
 
     # 清空已有数据
@@ -36,7 +64,7 @@ def init_db():
             "intent": "商品咨询 + 适配推荐", "emotion": "略有不满 (-0.52)", "emotion_class": "bg-orange-50 text-warning",
             "risk": "⚠ 中高风险", "risk_class": "bg-red-50 text-danger", "segment": "老客 · 高价值",
             "score": 78, "score_color": "bg-warning", "value_desc": "🔴 高价值高风险，建议人工优先跟进",
-            "preview": "这个收纳箱承重力怎么样？会不会变形？", "tab": "wait", "time": "13:42",
+            "preview": "这个厨房挂钩承重力怎么样？会不会掉？", "tab": "wait", "time": "13:42",
             "tags": [{"text": "高价值", "cls": "bg-orange-50 text-warning"}, {"text": "售前咨询", "cls": "bg-gray-100 text-gray-500"}],
         },
         {
@@ -46,7 +74,7 @@ def init_db():
             "intent": "售后退款诉求", "emotion": "不满愤怒 (-0.81)", "emotion_class": "bg-red-50 text-danger",
             "risk": "🔴 高风险", "risk_class": "bg-red-50 text-danger", "segment": "新客 · 退款风险",
             "score": 42, "score_color": "bg-danger", "value_desc": "🔴 高风险，必须立即人工介入",
-            "preview": "收到的垃圾桶有裂痕，怎么处理？", "tab": "wait", "time": "13:38",
+            "preview": "收到的牙刷置物架有裂痕，怎么处理？", "tab": "wait", "time": "13:38",
             "tags": [{"text": "售后风险", "cls": "bg-red-50 text-danger"}, {"text": "售后", "cls": "bg-gray-100 text-gray-500"}],
         },
         {
@@ -84,7 +112,7 @@ def init_db():
     # 生成更多会话 (共8个：5主+2AI+1待接手)
     ai_seeds = [
         {"id": 6, "name": "陈女士", "avatar": "陈", "source": "淘宝商城", "platform": "taobao", "intent": "物流查询", "emotion": "平稳", "risk": "✅ 低风险", "preview": "我的快递到哪了？已经发货三天了还没更新物流", "score": 62, "time": "12:45", "tag": "物流查询", "tag_cls": "bg-gray-100 text-gray-500"},
-        {"id": 7, "name": "周先生", "avatar": "周", "source": "京东", "platform": "jd", "intent": "商品参数", "emotion": "平稳", "risk": "✅ 低风险", "preview": "这个收纳盒是什么材质的？有没有味道？", "score": 58, "time": "12:30", "tag": "商品咨询", "tag_cls": "bg-gray-100 text-gray-500"},
+        {"id": 7, "name": "周先生", "avatar": "周", "source": "京东", "platform": "jd", "intent": "商品参数", "emotion": "平稳", "risk": "✅ 低风险", "preview": "这个粘毛器是什么材质的？粘力大吗？", "score": 58, "time": "12:30", "tag": "商品咨询", "tag_cls": "bg-gray-100 text-gray-500"},
     ]
 
     wait_seeds = [
@@ -130,13 +158,13 @@ def init_db():
     messages_data = [
         # 会话1
         {"session_id": 1, "dir": "center", "text": "13:40 · 用户进入会话，AI已自动接待", "type": "system-msg"},
-        {"session_id": 1, "dir": "right", "text": "你好，我想问下那款折叠收纳箱承重力怎么样？放书会不会变形啊？", "type": "user"},
-        {"session_id": 1, "dir": "left", "text": "您好~这款折叠收纳箱采用加厚PP材质，箱体承重可达30kg，放书籍完全没问题，正常使用不会变形哦。\n\n现在下单2件立减15元，叠加满减更划算，需要我给您发一下链接吗？", "type": "ai", "has_product": 1},
+        {"session_id": 1, "dir": "right", "text": "你好，我想问下那款厨房挂钩挂杆承重力怎么样？挂锅铲会不会掉啊？", "type": "user"},
+        {"session_id": 1, "dir": "left", "text": "您好~这款厨房挂钩采用不锈钢烤漆工艺，承重强不惧潮湿，挂锅铲勺子完全没问题。免钉胶安装简单方便，不伤墙面。\n\n搭配防烫夹取碗夹一起购买更划算，厨房收纳一套搞定，需要我给您发一下链接吗？", "type": "ai", "has_product": 1},
         {"session_id": 1, "dir": "right", "text": "那尺寸是多少？衣柜里放得下吗？还有质量不好能退吗？", "type": "user"},
         {"session_id": 1, "dir": "center", "text": "AI智能建议：用户关注尺寸与售后，建议回复尺寸参数+上门取件退换政策，同时推荐同系列组合套餐提升客单价。", "type": "insight"},
         # 会话2
         {"session_id": 2, "dir": "center", "text": "13:38 · 用户进入会话，AI已自动接待", "type": "system-msg"},
-        {"session_id": 2, "dir": "right", "text": "我收到的垃圾桶有一道裂痕，你们质量也太差了吧！赶紧给我处理！", "type": "user"},
+        {"session_id": 2, "dir": "right", "text": "我收到的牙刷置物架有一道裂痕，你们质量也太差了吧！赶紧给我处理！", "type": "user"},
         {"session_id": 2, "dir": "left", "text": "非常抱歉给您带来不好的体验！我们非常重视产品质量问题。请您方便的时候拍一下裂痕的照片，我立即为您处理——您可以选择免费补发一个新的，或者全额退款。", "type": "ai"},
         {"session_id": 2, "dir": "right", "text": "我要退款！不想要了，太失望了。", "type": "user"},
         {"session_id": 2, "dir": "center", "text": "⚠ AI智能建议：用户情绪激动，检测到强烈退款意图。建议立即转人工处理，并授权客服发放补偿优惠券。", "type": "insight-risk"},
@@ -149,11 +177,11 @@ def init_db():
         # 会话4
         {"session_id": 4, "dir": "center", "text": "13:12 · 用户进入会话，AI已自动接待", "type": "system-msg"},
         {"session_id": 4, "dir": "right", "text": "凑单满减怎么用？能叠加优惠券吗？", "type": "user"},
-        {"session_id": 4, "dir": "left", "text": "亲，现在店铺满199减30、满299减60，可以和平台优惠券叠加使用。您的购物车目前¥156，再凑¥43就能触发满199减30，相当于再省30元。推荐您加购这款收纳套装¥49.9，正好凑满哦～", "type": "ai", "has_product": 1},
+        {"session_id": 4, "dir": "left", "text": "亲，现在店铺满199减30、满299减60，可以和平台优惠券叠加使用。您的购物车目前¥156，再凑¥43就能触发满199减30，相当于再省30元。推荐您加购这款厨房挂钩+防烫夹组合，正好凑满哦～", "type": "ai", "has_product": 1},
         # 会话5
         {"session_id": 5, "dir": "center", "text": "12:58 · 用户进入会话", "type": "system-msg"},
-        {"session_id": 5, "dir": "right", "text": "刚收到毛巾架，安装视频能发我一下吗？", "type": "user"},
-        {"session_id": 5, "dir": "left", "text": "好的，这是免打孔毛巾架的安装教程视频，跟着步骤走5分钟就能装好。如果还有不清楚的随时问我～ [视频链接]", "type": "ai"},
+        {"session_id": 5, "dir": "right", "text": "刚收到厨房挂钩，安装视频能发我一下吗？", "type": "user"},
+        {"session_id": 5, "dir": "left", "text": "好的，这是厨房挂钩免钉胶安装教程视频，跟着步骤走几分钟就能装好。如果还有不清楚的随时问我～ [视频链接]", "type": "ai"},
         {"session_id": 5, "dir": "right", "text": "好的谢谢", "type": "user"},
         {"session_id": 5, "dir": "center", "text": "✅ 会话已由AI自动解决并归档。", "type": "insight-success"},
     ]
@@ -163,20 +191,20 @@ def init_db():
     # ========== 订单数据（含物流字段） ==========
     # logistics_status: pending(待发货) / shipped(已发货) / in_transit(运输中) / delivering(派送中) / delivered(已签收)
     orders_data = [
-        {"session_id": 1, "name": "厨房置物架套装", "status": "已签收", "status_class": "text-success", "order_no": "DY202607100035", "price": "¥89.9", "platform": "douyin", "tracking_no": "ZT88293475610392", "carrier": "中通快递", "logistics_status": "delivered"},
-        {"session_id": 1, "name": "折叠洗衣篮 大号", "status": "已签收", "status_class": "text-success", "order_no": "DY202606180087", "price": "¥39.9", "platform": "douyin", "tracking_no": "YD55610293847561", "carrier": "韵达快递", "logistics_status": "delivered"},
-        {"session_id": 1, "name": "纳米无痕挂钩 20个装", "status": "已签收", "status_class": "text-success", "order_no": "DY202605200012", "price": "¥29.9", "platform": "douyin", "tracking_no": "JT77482910375620", "carrier": "极兔速递", "logistics_status": "delivered"},
-        {"session_id": 2, "name": "卫生间垃圾桶 10L", "status": "已签收", "status_class": "text-success", "order_no": "TB202607140028", "price": "¥69.0", "platform": "taobao", "tracking_no": "YT99384726105384", "carrier": "圆通速递", "logistics_status": "delivered"},
-        {"session_id": 3, "name": "防滑衣架 30个装", "status": "待发货", "status_class": "text-warning", "order_no": "JD202607150042", "price": "¥45.9", "platform": "jd", "tracking_no": "", "carrier": "", "logistics_status": "pending"},
-        {"session_id": 3, "name": "浴室防滑垫", "status": "已签收", "status_class": "text-success", "order_no": "JD202606200015", "price": "¥59.9", "platform": "jd", "tracking_no": "ZT66102938475612", "carrier": "中通快递", "logistics_status": "delivered"},
-        {"session_id": 4, "name": "吸盘挂钩 10个装", "status": "已签收", "status_class": "text-success", "order_no": "PDD202607010006", "price": "¥19.9", "platform": "pdd", "tracking_no": "ST22839475610394", "carrier": "申通快递", "logistics_status": "delivered"},
-        {"session_id": 4, "name": "折叠收纳盒套装", "status": "已签收", "status_class": "text-success", "order_no": "PDD202606100088", "price": "¥35.8", "platform": "pdd", "tracking_no": "JT44561029384756", "carrier": "极兔速递", "logistics_status": "delivered"},
-        {"session_id": 4, "name": "冰箱保鲜盒 6件套", "status": "已签收", "status_class": "text-success", "order_no": "PDD202605150033", "price": "¥29.9", "platform": "pdd", "tracking_no": "YT77102938475620", "carrier": "圆通速递", "logistics_status": "delivered"},
-        {"session_id": 5, "name": "免打孔毛巾架", "status": "已签收", "status_class": "text-success", "order_no": "TB202607120019", "price": "¥52.0", "platform": "taobao", "tracking_no": "ZT33847561029384", "carrier": "中通快递", "logistics_status": "delivered"},
+        {"session_id": 1, "name": "厨房抽拉式置物架", "status": "已签收", "status_class": "text-success", "order_no": "DY202607100035", "price": "¥69.9", "platform": "douyin", "tracking_no": "ZT88293475610392", "carrier": "中通快递", "logistics_status": "delivered"},
+        {"session_id": 1, "name": "浴室吸盘伸缩浴巾架", "status": "已签收", "status_class": "text-success", "order_no": "DY202606180087", "price": "¥59.9", "platform": "douyin", "tracking_no": "YD55610293847561", "carrier": "韵达快递", "logistics_status": "delivered"},
+        {"session_id": 1, "name": "粘毛器滚筒可撕式", "status": "已签收", "status_class": "text-success", "order_no": "DY202605200012", "price": "¥15.9", "platform": "douyin", "tracking_no": "JT77482910375620", "carrier": "极兔速递", "logistics_status": "delivered"},
+        {"session_id": 2, "name": "牙刷置物架免打孔套装", "status": "已签收", "status_class": "text-success", "order_no": "TB202607140028", "price": "¥39.9", "platform": "taobao", "tracking_no": "YT99384726105384", "carrier": "圆通速递", "logistics_status": "delivered"},
+        {"session_id": 3, "name": "零食置物架小推车", "status": "待发货", "status_class": "text-warning", "order_no": "JD202607150042", "price": "¥79.9", "platform": "jd", "tracking_no": "", "carrier": "", "logistics_status": "pending"},
+        {"session_id": 3, "name": "洗脸盆收纳架子", "status": "已签收", "status_class": "text-success", "order_no": "JD202606200015", "price": "¥49.9", "platform": "jd", "tracking_no": "ZT66102938475612", "carrier": "中通快递", "logistics_status": "delivered"},
+        {"session_id": 4, "name": "锡纸空气炸锅专用纸", "status": "已签收", "status_class": "text-success", "order_no": "PDD202607010006", "price": "¥9.9", "platform": "pdd", "tracking_no": "ST22839475610394", "carrier": "申通快递", "logistics_status": "delivered"},
+        {"session_id": 4, "name": "洗脸盆收纳架子", "status": "已签收", "status_class": "text-success", "order_no": "PDD202606100088", "price": "¥49.9", "platform": "pdd", "tracking_no": "JT44561029384756", "carrier": "极兔速递", "logistics_status": "delivered"},
+        {"session_id": 4, "name": "YOUQIN抽拉式厨房置物架", "status": "已签收", "status_class": "text-success", "order_no": "PDD202605150033", "price": "¥129.0", "platform": "pdd", "tracking_no": "YT77102938475620", "carrier": "圆通速递", "logistics_status": "delivered"},
+        {"session_id": 5, "name": "牙刷置物架免打孔套装", "status": "已签收", "status_class": "text-success", "order_no": "TB202607120019", "price": "¥39.9", "platform": "taobao", "tracking_no": "ZT33847561029384", "carrier": "中通快递", "logistics_status": "delivered"},
         # session 6: 陈女士 — 物流查询场景，订单运输中
-        {"session_id": 6, "name": "加厚折叠收纳箱 2个装", "status": "已发货", "status_class": "text-primary", "order_no": "TB202607200051", "price": "¥104.0", "platform": "taobao", "tracking_no": "ZT20260720005188", "carrier": "中通快递", "logistics_status": "in_transit"},
+        {"session_id": 6, "name": "厨房抽拉式置物架", "status": "已发货", "status_class": "text-primary", "order_no": "TB202607200051", "price": "¥69.9", "platform": "taobao", "tracking_no": "ZT20260720005188", "carrier": "中通快递", "logistics_status": "in_transit"},
         # session 7: 周先生 — 商品咨询，有历史订单已签收
-        {"session_id": 7, "name": "桌面收纳盒", "status": "已签收", "status_class": "text-success", "order_no": "JD202607180033", "price": "¥35.9", "platform": "jd", "tracking_no": "YD20260718003355", "carrier": "韵达快递", "logistics_status": "delivered"},
+        {"session_id": 7, "name": "粘毛器滚筒可撕式", "status": "已签收", "status_class": "text-success", "order_no": "JD202607180033", "price": "¥15.9", "platform": "jd", "tracking_no": "YD20260718003355", "carrier": "韵达快递", "logistics_status": "delivered"},
     ]
     for o in orders_data:
         db.add(Order(**o))
@@ -230,16 +258,16 @@ def init_db():
 
     # ========== 推荐话术 ==========
     replies_data = [
-        {"session_id": 1, "text": "这款收纳箱采用加厚PP材质，承重可达30kg，放书籍完全不会变形。尺寸45×35×30cm，标准衣柜层板都能放。", "sort_order": 0},
-        {"session_id": 1, "text": "现在入手2个组合装更划算，平均每个只要52元，收纳衣物和书籍分类用很方便～", "sort_order": 1},
+        {"session_id": 1, "text": "这款厨房挂钩采用不锈钢烤漆工艺，承重强不惧潮湿，挂锅铲勺子完全没问题。免钉胶安装简单方便，不伤墙面。", "sort_order": 0},
+        {"session_id": 1, "text": "搭配防烫夹取碗夹一起购买更划算，厨房收纳一套搞定，夹热碗挂厨具都有了～", "sort_order": 1},
         {"session_id": 1, "text": "我们支持7天无理由退换，上门取件，质量问题包运费，您完全不用担心。今天下单还送运费险。", "sort_order": 2},
         {"session_id": 2, "text": "非常抱歉给您带来不好的体验！请您拍一下裂痕的照片发给我，我马上帮您处理换新或退款。", "sort_order": 0},
         {"session_id": 2, "text": "我们支持破损包赔，您可以选择重新补发一个新的，或者全额退款，都支持上门取件。", "sort_order": 1},
         {"session_id": 2, "text": "为了表达歉意，这边给您申请一张10元店铺无门槛优惠券，您看可以吗？", "sort_order": 2},
         {"session_id": 3, "text": "您的订单今天下午4点前发出，发中通快递，预计3-5天送达，物流单号稍后同步到订单详情页～", "sort_order": 0},
         {"session_id": 4, "text": "亲，现在店铺满199减30、满299减60，还可以叠加平台优惠券和店铺关注券，凑单下来相当于打了7折！", "sort_order": 0},
-        {"session_id": 4, "text": "您现在购物车里的是¥156，再凑¥43就能满199减30，推荐加购这个收纳套装，正好凑满～", "sort_order": 1},
-        {"session_id": 5, "text": "安装视频已经发给您了，跟着步骤操作大概5分钟就能装好，免打孔的设计非常简单～", "sort_order": 0},
+        {"session_id": 4, "text": "您现在购物车里的是¥156，再凑¥43就能满199减30，推荐加购厨房挂钩+防烫夹组合，正好凑满～", "sort_order": 1},
+        {"session_id": 5, "text": "安装视频已经发给您了，跟着步骤操作几分钟就能装好，免钉胶安装非常简单～", "sort_order": 0},
     ]
     for r in replies_data:
         db.add(Reply(**r))

@@ -51,8 +51,13 @@ def _init_demo_data():
             subprocess.run([sys.executable, init_script], check=True)
         else:
             db.close()
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").error(f"演示数据初始化失败: {e}")
+        try:
+            db.close()
+        except Exception:
+            pass
 
 _init_demo_data()
 

@@ -1,13 +1,13 @@
 """
 AI 路由 - 使用 DeepSeek API 进行智能分析、自动回答和话术推荐
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import random
 from datetime import datetime
 from app.database import get_db
-from app.models import Session as SessionModel, Message, Reply
+from app.models import Session as SessionModel, Message, Reply, Order
 from app.schemas import AIAnalysisRequest, AIAnalysisResponse
 from app.services.deepseek_service import analyze_and_reply
 from app.services.knowledge_base import search_knowledge, search_knowledge_structured, get_chunk_count, get_category_counts
@@ -73,7 +73,7 @@ CONVERSATION_FLOWS = {
         "好的，我试试看",
     ],
     "商品参数咨询": [
-        "这个收纳箱承重多少？放书会不会变形？",
+        "这个零食小推车承重多少？放书会不会压弯？",
         "尺寸是多少？我量一下柜子能不能放",
         "好的，那我拍一个",
     ],
@@ -100,7 +100,7 @@ CONVERSATION_FLOWS = {
         "这个挂钩根本粘不住，掉了好几次",
     ],
     "商品咨询": [
-        "这个收纳箱有几种颜色？",
+        "这个零食小推车有几款？有什么区别？",
         "可以叠放吗？会不会不稳？",
         "好的，谢谢",
     ],
@@ -153,9 +153,15 @@ DEFAULT_REPLIES = [
 
 def _build_session_context(db: Session, session_id: int, limit: int = 6) -> str:
     """
-    构建会话上下文：取最近 limit 条消息（客户+客服+AI），按时间顺序拼接。
-    用于让 DeepSeek 理解对话背景，识别情绪演变趋势。
+    构建会话上下文：包含会话关联的订单信息（客户购买的商品）+ 最近 limit 条消息。
+    让 AI 知道客户买了什么，回答商品使用/售后问题时可针对性回复，避免反问"您问的是哪款商品"。
     """
+    # 会话关联订单（售前下单/售后选单都会创建）
+    orders = db.query(Order).filter(Order.session_id == session_id).all()
+    order_lines = []
+    for o in orders:
+        order_lines.append(f"[订单] 商品：{o.name}，状态：{o.status}，金额：{o.price}")
+
     recent_msgs = (
         db.query(Message)
         .filter(Message.session_id == session_id)
@@ -166,10 +172,10 @@ def _build_session_context(db: Session, session_id: int, limit: int = 6) -> str:
     # 反转为时间正序
     recent_msgs.reverse()
 
-    if not recent_msgs:
-        return ""
-
     lines = []
+    if order_lines:
+        lines.append("【客户本次会话关联的订单】")
+        lines.extend(order_lines)
     for m in recent_msgs:
         role = "客户" if m.dir == "right" else ("AI客服" if m.type == "ai" else "人工客服")
         lines.append(f"[{role}] {m.text}")
@@ -250,7 +256,7 @@ def _ai_analyze(customer_message: str, session_score: int = 50, session_context:
     manual_keywords = ['负责人', '效率', '等了', '等很久', '等半天', '半天', '不回复', '没人',
                        '没人理', '人呢', '在吗', '客服在吗', '急', '着急', '催', '怎么还不',
                        '退钱', '赔偿', '曝光', '差评', '投诉', '举报', '小红书', '微博',
-                       '太慢', '太差', '什么质量', '失望', '骗子', '忽悠', '神经病', ' rubbish']
+                       '太慢', '太差', '什么质量', '失望', '骗子', '忽悠', '神经病']
     negative_emotions = ['愤怒', '激动', '不满', '焦虑']
     need_manual = False
     if emotion in negative_emotions:
@@ -327,7 +333,7 @@ def regenerate_replies(session_id: int, db: Session = Depends(get_db)):
     """
     s = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not s:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     # 取最新一条客户消息
     latest_msg = (
@@ -337,7 +343,7 @@ def regenerate_replies(session_id: int, db: Session = Depends(get_db)):
         .first()
     )
     if not latest_msg:
-        return {"error": "No customer message found"}
+        raise HTTPException(status_code=404, detail="No customer message found")
 
     # 构建对话历史上下文
     session_context = _build_session_context(db, session_id, limit=6)
@@ -371,7 +377,7 @@ def simulate_customer_message(
     """
     s = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not s:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     # ====== 检查最后一条消息 ======
     last_msg = (
@@ -473,7 +479,7 @@ def analyze_customer_message(
     """
     s = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not s:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
 
     # 取最新一条客户消息
     latest_msg = (
@@ -483,7 +489,7 @@ def analyze_customer_message(
         .first()
     )
     if not latest_msg:
-        return {"error": "No customer message found"}
+        raise HTTPException(status_code=404, detail="No customer message found")
 
     customer_msg = latest_msg.text
 

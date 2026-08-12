@@ -5,7 +5,8 @@
     "buildCommand": "python3 -m venv venv && venv/bin/pip install -r backend/requirements.txt"
   },
   "deploy": {
-    "startCommand": "PYTHONPATH=backend venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT",
+    "startCommand": "PYTHONPATH=backend venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}",
+    "healthcheckPath": "/api/health",
     "restartPolicyType": "ON_FAILURE"
   }
 }

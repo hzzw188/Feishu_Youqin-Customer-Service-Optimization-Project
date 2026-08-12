@@ -156,8 +156,8 @@
                     <div class="wb-product-body">
                       <div class="wb-product-img"><el-icon :size="22"><Box /></el-icon></div>
                       <div class="wb-product-info">
-                        <div class="wb-product-name">加厚折叠收纳箱 66L</div>
-                        <div class="wb-product-price">¥ 59.9</div>
+                        <div class="wb-product-name">厨房挂钩免打孔挂杆</div>
+                        <div class="wb-product-price">¥ 29.9</div>
                       </div>
                       <el-button size="small" class="wb-product-btn">去看看</el-button>
                     </div>

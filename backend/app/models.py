@@ -29,6 +29,19 @@ class Session(Base):
     status = Column(String(20), default="active")  # active / transferred / closed
     time = Column(String(10), default="")
     tags = Column(JSON, default=list)
+
+    # ===== 营收贡献（基于《客户价值视角的电商客服营收贡献测算模型》） =====
+    is_deal = Column(Integer, default=0)          # 售前：是否成交（客户点击"下单"）
+    deal_amount = Column(Float, default=0)        # 成交金额
+    resolved = Column(Integer, default=0)         # 售后：问题是否已解决（客户点击"已解决"）
+    refund_amount = Column(Float, default=0)      # 实际退款金额（已解决=0，即全额挽回）
+    base_convert_prob = Column(Float, default=0)  # 基准成交概率 p（规则基准模型）
+    base_refund_prob = Column(Float, default=0)   # 基准退款概率 q（规则基准模型）
+    contrib_conv = Column(Float, default=0)       # 售前转化价值 Vconv
+    contrib_retain = Column(Float, default=0)     # 退款挽回价值 Vretain
+    contrib_total = Column(Float, default=0)      # 营收贡献合计
+    final_handler = Column(String(10), default="ai")  # ai / manual（会话最终闭环方）
+
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

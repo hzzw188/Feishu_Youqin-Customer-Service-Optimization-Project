@@ -48,6 +48,27 @@ export interface CockpitHourly {
   percent: number
 }
 
+export interface CockpitValueComparison {
+  ai_total: number
+  human_total: number
+  ai_conv: number
+  ai_retain: number
+  human_conv: number
+  human_retain: number
+}
+
+export interface CockpitConversionValue {
+  total: number
+  session_count: number
+  avg_per_session: number
+  top_sessions: {
+    session_id: string
+    name: string
+    amount: number
+    gmvs: number
+  }[]
+}
+
 export interface CockpitSummary {
   kpis: CockpitKPI[]
   trends: CockpitTrend[]
@@ -55,6 +76,8 @@ export interface CockpitSummary {
   attributions: CockpitAttribution[]
   csat: CockpitCsatRow[]
   hourly: CockpitHourly[]
+  value_comparison: CockpitValueComparison
+  conversion_value: CockpitConversionValue
 }
 
 export const cockpitAPI = {

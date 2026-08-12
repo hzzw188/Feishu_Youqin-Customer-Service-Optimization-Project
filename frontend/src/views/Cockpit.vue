@@ -83,7 +83,7 @@
           </div>
         </div>
 
-        <!-- 图表行：左咨询量柱状+解决率折线（综合） / 右 Top 高频问题 -->
+        <!-- 图表行：左咨询量柱状+解决率折线 / 右 AI vs 人工价值对比饼图 -->
         <div class="cp-chart-row">
           <div class="cp-card cp-chart-card cp-chart-wide">
             <div class="cp-card-head">
@@ -102,21 +102,12 @@
           <div class="cp-card cp-chart-card cp-chart-narrow">
             <div class="cp-card-head">
               <div>
-                <div class="cp-card-title-main">Top 高频问题</div>
-                <div class="cp-card-title-sub">按本月咨询次数排序</div>
+                <div class="cp-card-title-main">AI 与人工价值互补结构</div>
+                <div class="cp-card-title-sub">AI vs 人工营收贡献对比</div>
               </div>
             </div>
-            <div v-if="questionList.length" class="cp-question-list">
-              <div v-for="q in questionList" :key="q.rank" class="cp-question-item">
-                <span :class="['cp-qrank', qRankClass(q.rank)]">{{ q.rank }}</span>
-                <div class="cp-qbody">
-                  <div class="cp-qtext">{{ q.question }}</div>
-                  <el-progress :percentage="q.progress" :color="qColor(q.color)" :stroke-width="6" :show-text="false" />
-                </div>
-                <span class="cp-qcount">{{ q.count.toLocaleString() }}</span>
-              </div>
-            </div>
-            <div v-else class="cp-nodata">暂无高频问题数据</div>
+            <div v-if="valueComparison.total > 0" ref="valuePieRef" class="cp-chart-canvas cp-pie"></div>
+            <div v-else class="cp-nodata">暂无贡献数据，等待客户下单/解决</div>
           </div>
         </div>
 
@@ -153,35 +144,40 @@
             </div>
           </div>
 
-          <!-- 用户满意度分布 -->
+          <!-- 售前转化价值 -->
           <div class="cp-card cp-dist-card">
             <div class="cp-card-head">
               <div>
-                <div class="cp-card-title-main">用户满意度分布</div>
-                <div class="cp-card-title-sub">基于会话评分统计</div>
+                <div class="cp-card-title-main">售前转化价值</div>
+                <div class="cp-card-title-sub">客服促成的成交转化贡献</div>
               </div>
             </div>
-            <div class="cp-dist-list">
-              <div v-for="(row, idx) in csatRows" :key="row.label" class="cp-dist-item">
-                <div class="cp-dist-head">
-                  <span class="cp-dist-label">{{ row.label }}</span>
-                  <span class="cp-dist-value" :style="{ color: csatColors[idx] }">{{ row.value }}%</span>
+            <div v-if="conversionValue.total > 0" class="cp-conv-body">
+              <div class="cp-conv-hero">
+                <span class="cp-conv-amount">¥{{ conversionValue.total.toFixed(0) }}</span>
+                <span class="cp-conv-unit">转化贡献</span>
+              </div>
+              <div class="cp-conv-stats">
+                <div class="cp-conv-stat">
+                  <span class="cp-conv-stat-num">{{ conversionValue.session_count }}</span>
+                  <span class="cp-conv-stat-label">贡献会话</span>
                 </div>
-                <div class="cp-dist-bar-track">
-                  <div
-                    class="cp-dist-bar-fill"
-                    :style="{
-                      width: row.value + '%',
-                      background: `linear-gradient(90deg, ${csatColors[idx]}33 0%, ${csatColors[idx]} 100%)`,
-                    }"
-                  ></div>
+                <div class="cp-conv-stat">
+                  <span class="cp-conv-stat-num">¥{{ conversionValue.avg_per_session.toFixed(0) }}</span>
+                  <span class="cp-conv-stat-label">均会话贡献</span>
                 </div>
               </div>
-              <div class="cp-csat-box">
-                <div class="cp-csat-label">整体满意率</div>
-                <div class="cp-csat-value">{{ csatTotal }}%</div>
+              <div class="cp-conv-list" v-if="conversionValue.top_sessions.length">
+                <div class="cp-conv-list-title">Top 转化会话</div>
+                <div v-for="(cs, i) in conversionValue.top_sessions" :key="cs.session_id" class="cp-conv-item">
+                  <span class="cp-conv-rank">{{ i + 1 }}</span>
+                  <span class="cp-conv-session">{{ cs.session_id }}</span>
+                  <span class="cp-conv-name">{{ cs.name }}</span>
+                  <span class="cp-conv-val">+¥{{ cs.amount.toFixed(0) }}</span>
+                </div>
               </div>
             </div>
+            <div v-else class="cp-nodata">暂无转化数据</div>
           </div>
 
           <!-- 会话时段分布 -->
@@ -319,7 +315,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   Headset, Odometer, Bell, UserFilled,
-  TrendCharts, Link, MagicStick, Timer, Star, Money,
+  TrendCharts, Link, Star, Money, Cpu, Timer,
   Connection, ChatDotRound,
 } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
@@ -333,8 +329,10 @@ const router = useRouter()
 
 const trendChartRef = ref<HTMLElement | null>(null)
 const hourChartRef = ref<HTMLElement | null>(null)
+const valuePieRef = ref<HTMLElement | null>(null)
 let trendChart: echarts.ECharts | null = null
 let hourChart: echarts.ECharts | null = null
+let valuePieChart: echarts.ECharts | null = null
 
 const updateTime = ref(new Date().toLocaleString('zh-CN', { hour12: false }))
 
@@ -344,8 +342,20 @@ const trendList = computed(() => store.summary?.trends || [])
 const questionList = computed(() => store.summary?.top_questions || [])
 const attributionList = computed(() => store.summary?.attributions || [])
 
-// KPI 图标（6个，按索引对应）
-const iconPool: Component[] = [MagicStick, Timer, Star, Money, Connection, ChatDotRound]
+// AI vs 人工价值对比
+const valueComparison = computed(() => {
+  const vc = store.summary?.value_comparison
+  if (!vc) return { total: 0, ai_total: 0, human_total: 0, ai_conv: 0, ai_retain: 0, human_conv: 0, human_retain: 0 }
+  return { ...vc, total: vc.ai_total + vc.human_total }
+})
+
+// 售前转化价值
+const conversionValue = computed(() => {
+  return store.summary?.conversion_value || { total: 0, session_count: 0, avg_per_session: 0, top_sessions: [] }
+})
+
+// KPI 图标（6个，按索引对应）：💰营收贡献 / 🤖AI贡献 / 😊满意度 / ⚡响应效率 ...
+const iconPool: Component[] = [Money, Cpu, Star, Timer, Connection, ChatDotRound]
 function kpiIcon(idx: number) {
   return iconPool[idx % iconPool.length]
 }
@@ -367,13 +377,6 @@ function progressColor(c: string) {
   return '#2563EB'
 }
 
-function qRankClass(rank: number) {
-  if (rank === 1) return 'rank-1'
-  if (rank === 2) return 'rank-2'
-  if (rank === 3) return 'rank-3'
-  return 'rank-other'
-}
-
 function qColor(c: string) {
   if (!c) return '#2563EB'
   if (c.includes('danger')) return '#EF4444'
@@ -389,24 +392,6 @@ function qColorHex(c: string): string {
   if (v.startsWith('#')) return v
   return '#2563EB'
 }
-
-// CSAT 满意度分布：优先用后端真实数据（基于会话解决状态推算）
-const csatRows = computed(() => {
-  const backendCsat = store.summary?.csat
-  if (backendCsat && backendCsat.length > 0) {
-    return backendCsat
-  }
-  // 后端无数据时的兜底
-  return [
-    { label: '非常满意', value: 0 },
-    { label: '满意', value: 0 },
-    { label: '一般', value: 0 },
-    { label: '不满意', value: 0 },
-    { label: '非常不满意', value: 0 },
-  ]
-})
-const csatColors = ['#10B981', '#3CCFA7', '#F59E0B', '#F97316', '#EF4444']
-const csatTotal = computed(() => csatRows.value[0].value + csatRows.value[1].value)
 
 // ========= 图表 1：咨询量柱 + AI解决率折线 =========
 function initTrendChart() {
@@ -543,6 +528,70 @@ function initHourChart() {
   })
 }
 
+// ========= 图表 3：AI vs 人工价值对比饼图 =========
+function initValuePieChart() {
+  const vc = valueComparison.value
+  if (!vc || vc.total <= 0 || !valuePieRef.value) return
+  if (valuePieChart) valuePieChart.dispose()
+  valuePieChart = echarts.init(valuePieRef.value)
+
+  const aiColor = '#2563EB'
+  const aiColor2 = '#60A5FA'
+  const humanColor = '#F59E0B'
+  const humanColor2 = '#FBBF24'
+
+  valuePieChart.setOption({
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: '#0F172A',
+      borderColor: 'transparent',
+      textStyle: { color: '#fff', fontSize: 12 },
+      formatter: (params: any) => {
+        const pct = vc.total > 0 ? (params.value / vc.total * 100).toFixed(1) : '0'
+        return `${params.seriesName}<br/>${params.name}: ¥${params.value.toFixed(0)} (${pct}%)`
+      },
+    },
+    legend: {
+      bottom: 0,
+      textStyle: { color: '#64748B', fontSize: 11 },
+      itemWidth: 10, itemHeight: 10, itemGap: 14,
+    },
+    series: [
+      {
+        name: 'AI vs 人工价值',
+        type: 'pie',
+        radius: ['42%', '72%'],
+        center: ['50%', '48%'],
+        avoidLabelOverlap: false,
+        itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+        label: {
+          show: true,
+          position: 'outside',
+          formatter: (params: any) => {
+            const pct = vc.total > 0 ? (params.value / vc.total * 100).toFixed(0) : '0'
+            return `{name|${params.name}}\n{val|¥${params.value.toFixed(0)}} {pct|${pct}%}`
+          },
+          rich: {
+            name: { fontSize: 11, color: '#475569', lineHeight: 18 },
+            val: { fontSize: 13, color: '#0F172A', fontWeight: 700, lineHeight: 20 },
+            pct: { fontSize: 11, color: '#64748B', lineHeight: 20 },
+          },
+        },
+        emphasis: {
+          label: { fontSize: 14, fontWeight: 'bold' },
+          scaleSize: 8,
+        },
+        data: [
+          { value: vc.ai_conv, name: 'AI 转化', itemStyle: { color: aiColor } },
+          { value: vc.ai_retain, name: 'AI 挽回', itemStyle: { color: aiColor2 } },
+          { value: vc.human_conv, name: '人工 转化', itemStyle: { color: humanColor } },
+          { value: vc.human_retain, name: '人工 挽回', itemStyle: { color: humanColor2 } },
+        ].filter(d => d.value > 0),
+      },
+    ],
+  })
+}
+
 // ========= 飞书同步（保留原有逻辑） =========
 const feishuDialogVisible = ref(false)
 const feishuLoading = ref(false)
@@ -617,6 +666,7 @@ watch(
     nextTick(() => {
       initTrendChart()
       initHourChart()
+      initValuePieChart()
     })
   },
 )
@@ -665,6 +715,7 @@ onUnmounted(() => {
   stopRefreshLoop()
   trendChart?.dispose()
   hourChart?.dispose()
+  valuePieChart?.dispose()
 })
 </script>
 
@@ -888,30 +939,8 @@ onUnmounted(() => {
   box-shadow: 0 0 0 1px #10B981;
 }
 
-/* Top 问题列表 */
-.cp-question-list {
-  padding: 4px 20px 0;
-  display: flex; flex-direction: column; gap: 14px;
-}
-.cp-question-item {
-  display: flex; align-items: center; gap: 10px;
-}
-.cp-qrank {
-  width: 24px; height: 24px; border-radius: 6px;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0;
-}
-.cp-qrank.rank-1 { background: #EF4444; }
-.cp-qrank.rank-2 { background: #F59E0B; }
-.cp-qrank.rank-3 { background: #2563EB; }
-.cp-qrank.rank-other { background: #94A3B8; }
-.cp-qbody { flex: 1; min-width: 0; }
-.cp-qtext {
-  font-size: 13px; color: #1E293B;
-  margin-bottom: 6px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.cp-qcount { font-size: 12px; color: #64748B; flex-shrink: 0; }
+/* 饼图 */
+.cp-pie { height: 280px; padding: 0 10px; }
 
 /* =============== 3分布卡 =============== */
 .cp-dist-row {
@@ -942,16 +971,42 @@ onUnmounted(() => {
 }
 .cp-dist-bar-fill { height: 100%; border-radius: 999px; transition: width 0.6s; }
 
-.cp-csat-box {
-  margin-top: 4px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: #ECFDF5;
-  border: 1px solid #A7F3D0;
-  display: flex; justify-content: space-between; align-items: center;
+/* =============== 售前转化价值 =============== */
+.cp-conv-body { padding: 0 20px 20px; }
+.cp-conv-hero {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 18px 0 12px;
+  border-bottom: 1px solid #F1F5F9;
 }
-.cp-csat-label { font-size: 12px; color: #64748B; }
-.cp-csat-value { font-size: 22px; font-weight: 700; color: #10B981; }
+.cp-conv-amount { font-size: 32px; font-weight: 800; color: #0F172A; letter-spacing: 0.5px; }
+.cp-conv-unit { font-size: 13px; color: #94A3B8; }
+.cp-conv-stats {
+  display: flex; gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid #F1F5F9;
+}
+.cp-conv-stat { display: flex; flex-direction: column; gap: 2px; }
+.cp-conv-stat-num { font-size: 18px; font-weight: 700; color: #2563EB; }
+.cp-conv-stat-label { font-size: 11px; color: #94A3B8; }
+.cp-conv-list { padding-top: 12px; }
+.cp-conv-list-title { font-size: 11px; font-weight: 600; color: #64748B; margin-bottom: 8px; }
+.cp-conv-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 6px;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.cp-conv-item:hover { background: #F8FAFC; }
+.cp-conv-rank {
+  width: 18px; height: 18px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 10px; font-weight: 700; flex-shrink: 0;
+  background: #2563EB;
+}
+.cp-conv-rank:first-child { background: #EF4444; }
+.cp-conv-session { color: #64748B; font-family: monospace; font-size: 11px; }
+.cp-conv-name { flex: 1; min-width: 0; color: #1E293B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-conv-val { font-weight: 700; color: #10B981; flex-shrink: 0; }
 
 .cp-histogram { height: 210px; padding: 0 6px; }
 

@@ -103,6 +103,7 @@ def send_message(session_id: int, msg: MessageCreate, db: Session = Depends(get_
         has_product=msg.has_product,
     )
     db.add(db_msg)
+    db.flush()  # 先 flush 让 created_at 默认值生效，避免 updated_at 被写成 NULL
     s.updated_at = db_msg.created_at
     db.commit()
     db.refresh(db_msg)
@@ -194,11 +195,12 @@ def mark_risk(session_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/{session_id}/messages")
 def clear_messages(session_id: int, db: Session = Depends(get_db)):
-    """清除指定会话的所有聊天记录"""
+    """清除指定会话的所有聊天记录和 AI 推荐话术"""
     s = db.query(SessionModel).filter(SessionModel.id == session_id).first()
     if not s:
         raise HTTPException(status_code=404, detail="Session not found")
     db.query(Message).filter(Message.session_id == session_id).delete()
+    db.query(Reply).filter(Reply.session_id == session_id).delete()
     s.preview = ""
     db.commit()
     return {"ok": True}
@@ -248,4 +250,12 @@ def _session_to_dict(s: SessionModel) -> dict:
         "tags": s.tags or [],
         "created_at": (s.created_at.isoformat() if s.created_at else None),
         "updated_at": (s.updated_at.isoformat() if s.updated_at else None),
+        # 营收贡献字段（供工作台前段展示）
+        "is_deal": s.is_deal,
+        "deal_amount": s.deal_amount,
+        "resolved": s.resolved,
+        "refund_amount": s.refund_amount,
+        "contrib_conv": s.contrib_conv,
+        "contrib_retain": s.contrib_retain,
+        "contrib_total": s.contrib_total,
     }
