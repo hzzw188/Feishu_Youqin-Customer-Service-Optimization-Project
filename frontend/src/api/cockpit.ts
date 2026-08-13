@@ -84,16 +84,4 @@ export const cockpitAPI = {
   getSummary(period: string = '30d') {
     return api.get('/cockpit/summary', { params: { period } }) as Promise<CockpitSummary>
   },
-  getKPIs(period: string = '30d') {
-    return api.get('/cockpit/kpis', { params: { period } }) as Promise<CockpitKPI[]>
-  },
-  getTrends(period: string = '7d') {
-    return api.get('/cockpit/trends', { params: { period } }) as Promise<CockpitTrend[]>
-  },
-  getTopQuestions() {
-    return api.get('/cockpit/top-questions') as Promise<CockpitQuestion[]>
-  },
-  getAttributions() {
-    return api.get('/cockpit/attributions') as Promise<CockpitAttribution[]>
-  },
 }
