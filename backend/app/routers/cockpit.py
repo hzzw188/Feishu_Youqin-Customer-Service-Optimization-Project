@@ -222,7 +222,7 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
             if vretain:
                 parts.append(f"挽回+¥{vretain:.1f}")
             attributions.append({
-                "session_id": f"#SES-{s.id:04d}",
+                "name": s.user_name or "未知",
                 "event_type": "成交" if s.is_deal else "售后解决",
                 "event_amount": f"¥{order_val:.0f}",
                 "attrib_window": "会话内",
@@ -233,7 +233,7 @@ def get_cockpit_summary(period: str = Query("30d"), db: Session = Depends(get_db
         else:
             # 有订单但未触发贡献计算 → 待转化
             attributions.append({
-                "session_id": f"#SES-{s.id:04d}",
+                "name": s.user_name or "未知",
                 "event_type": "咨询",
                 "event_amount": f"¥{order_val:.0f}",
                 "attrib_window": "会话内",

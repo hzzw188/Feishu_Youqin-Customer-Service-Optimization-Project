@@ -209,7 +209,7 @@
             :header-cell-style="{ background: '#F7F8FA', color: '#475569', fontWeight: 600, fontSize: '12px' }"
             :cell-style="{ fontSize: '13px', color: '#1E293B' }"
           >
-            <el-table-column prop="session_id" label="会话ID" min-width="160" />
+            <el-table-column prop="name" label="客户名称" min-width="160" />
             <el-table-column prop="event_type" label="事件类型" min-width="120" />
             <el-table-column prop="event_amount" label="事件金额" min-width="100" align="right" />
             <el-table-column prop="attrib_window" label="归因窗口" min-width="100" align="center" />

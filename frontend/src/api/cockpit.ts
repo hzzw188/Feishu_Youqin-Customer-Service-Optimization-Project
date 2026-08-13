@@ -28,7 +28,7 @@ export interface CockpitQuestion {
 }
 
 export interface CockpitAttribution {
-  session_id: string
+  name: string
   event_type: string
   event_amount: string
   attrib_window: string
