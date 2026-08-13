@@ -30,10 +30,10 @@ from app.routers.customer import MOCK_PRODUCTS
 router = APIRouter(prefix="/api/feishu", tags=["feishu"])
 
 # ====== 配置（从环境变量读取，未配置则降级为 mock 模式） ======
-FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "")
-FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "")
+FEISHU_APP_ID = os.getenv("FEISHU_APP_ID", "").strip()
+FEISHU_APP_SECRET = os.getenv("FEISHU_APP_SECRET", "").strip()
 # 使用用户提供的飞书 Base token（6张表已建好）
-FEISHU_APP_TOKEN = os.getenv("FEISHU_APP_TOKEN", "S02Lbjo4ca8Cqwse8NKcltTjnLh")
+FEISHU_APP_TOKEN = os.getenv("FEISHU_APP_TOKEN", "S02Lbjo4ca8Cqwse8NKcltTjnLh").strip()
 
 FEISHU_BASE = "https://open.feishu.cn/open-apis"
 
