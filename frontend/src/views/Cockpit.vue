@@ -529,11 +529,8 @@ function initHourChart() {
         label: {
           show: true,
           position: 'top',
-          padding: [3, 7],
-          borderRadius: 9,
-          backgroundColor: '#F59E0B',
-          color: '#fff',
-          fontSize: 10,
+          color: '#B45309',
+          fontSize: 9,
           fontWeight: 600,
           formatter: (p: any) => (p.value > 0 ? `${p.value}` : ''),
         },
