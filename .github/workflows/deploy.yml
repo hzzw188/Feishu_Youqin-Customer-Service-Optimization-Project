@@ -35,8 +35,8 @@ jobs:
       - name: Build
         run: cd frontend && npm run build
         env:
-          # Railway 后端地址（用户部署后需替换为自己的 Railway URL）
-          VITE_API_BASE: https://ample-trust-production-d7ba.up.railway.app/api
+          # Railway 后端地址
+          VITE_API_BASE: https://api.hzzw1998.online/api
 
       - name: Publish to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
