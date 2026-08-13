@@ -72,11 +72,21 @@
                 <span class="cp-kpi-num">{{ kpi.value }}</span>
                 <span v-if="kpi.unit" class="cp-kpi-unit">{{ kpi.unit }}</span>
               </div>
+              <div v-if="kpi.sales_amount" class="cp-kpi-sales">
+                <div class="cp-kpi-sales-head">
+                  <span class="cp-kpi-sales-label">总销售额</span>
+                  <span class="cp-kpi-sales-val">¥{{ kpi.sales_amount.toFixed(0) }}</span>
+                  <span class="cp-kpi-sales-badge">占比 {{ kpi.sales_ratio }}%</span>
+                </div>
+                <div class="cp-kpi-sales-bar">
+                  <div class="cp-kpi-sales-fill" :style="{ width: Math.min(kpi.sales_ratio, 100) + '%' }"></div>
+                </div>
+              </div>
               <div class="cp-kpi-foot">
                 <span :class="['cp-kpi-trend', trendClass(kpi.trend_class)]">{{ kpi.trend_text }} 较上月</span>
                 <span class="cp-kpi-desc">{{ kpi.desc }}</span>
               </div>
-              <div v-if="kpi.progress > 0" class="cp-kpi-progress">
+              <div v-if="kpi.progress > 0 && !kpi.sales_amount" class="cp-kpi-progress">
                 <el-progress :percentage="kpi.progress" :color="progressColor(kpi.progress_color)" :stroke-width="6" :show-text="false" />
               </div>
             </div>
@@ -908,18 +918,52 @@ onUnmounted(() => {
 
 .cp-kpi-foot {
   display: flex; justify-content: space-between; align-items: center;
-  gap: 10px; flex-wrap: wrap;
+  gap: 10px; flex-wrap: nowrap; min-width: 0;
 }
 .cp-kpi-trend {
   display: inline-flex; align-items: center;
   padding: 2px 8px; border-radius: 999px;
   font-size: 10px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 62%; flex-shrink: 0;
 }
 .cp-kpi-trend.up   { background: #ECFDF5; color: #10B981; }
 .cp-kpi-trend.down { background: #FEF2F2; color: #EF4444; }
 .cp-kpi-trend.flat { background: #EFF4FF; color: #2563EB; }
-.cp-kpi-desc { font-size: 10px; color: #94A3B8; }
+.cp-kpi-desc {
+  font-size: 10px; color: #94A3B8;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0;
+}
 .cp-kpi-progress { margin-top: 4px; }
+
+/* 营收贡献卡：总销售额对比 */
+.cp-kpi-sales { margin: 0 0 4px; }
+.cp-kpi-sales-head { display: flex; align-items: baseline; gap: 6px; }
+.cp-kpi-sales-label { font-size: 10px; color: #94A3B8; flex-shrink: 0; }
+.cp-kpi-sales-val { font-size: 13px; font-weight: 700; color: #334155; }
+.cp-kpi-sales-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: #2563EB;
+  background: #EFF4FF;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.cp-kpi-sales-bar {
+  margin-top: 3px;
+  height: 4px;
+  border-radius: 999px;
+  background: #F1F5F9;
+  overflow: hidden;
+}
+.cp-kpi-sales-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #60A5FA, #2563EB);
+}
 
 /* =============== 图表大卡行 =============== */
 .cp-chart-row {

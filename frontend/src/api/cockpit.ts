@@ -11,6 +11,8 @@ export interface CockpitKPI {
   desc: string
   progress: number
   progress_color: string
+  sales_amount?: number
+  sales_ratio?: number
 }
 
 export interface CockpitTrend {
