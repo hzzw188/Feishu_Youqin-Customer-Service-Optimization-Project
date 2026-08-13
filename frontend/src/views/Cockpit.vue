@@ -489,6 +489,8 @@ function initHourChart() {
   const hourlyData = store.summary?.hourly || []
   const hours = hourlyData.map(h => h.hour)
   const counts = hourlyData.map(h => h.count)
+  const maxCount = Math.max(...counts, 0)
+  const yMax = Math.max(5, Math.ceil((maxCount + 1) * 1.1))
 
   hourChart.setOption({
     tooltip: {
@@ -497,7 +499,7 @@ function initHourChart() {
       textStyle: { color: '#fff', fontSize: 12 },
       formatter: (params: any) => `${params[0].axisValue}点<br/>会话数：${params[0].data} 个`,
     },
-    grid: { left: 36, right: 10, top: 10, bottom: 22 },
+    grid: { left: 36, right: 10, top: 34, bottom: 22 },
     xAxis: {
       type: 'category',
       data: hours,
@@ -508,6 +510,7 @@ function initHourChart() {
     yAxis: {
       type: 'value',
       minInterval: 1,
+      max: yMax,
       axisLabel: { color: '#64748B', fontSize: 10 },
       splitLine: { lineStyle: { color: '#F1F5F9' } },
     },
@@ -522,6 +525,17 @@ function initHourChart() {
             { offset: 0, color: '#F59E0B' },
             { offset: 1, color: '#FDE68A' },
           ]),
+        },
+        label: {
+          show: true,
+          position: 'top',
+          padding: [3, 7],
+          borderRadius: 9,
+          backgroundColor: '#F59E0B',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 600,
+          formatter: (p: any) => (p.value > 0 ? `${p.value}` : ''),
         },
       },
     ],

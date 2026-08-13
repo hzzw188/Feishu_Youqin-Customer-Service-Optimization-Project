@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
@@ -5,6 +6,18 @@ from dotenv import load_dotenv
 
 # 加载 .env 文件中的环境变量（飞书凭证、DeepSeek API Key 等）
 load_dotenv()
+
+# 记录服务器原时区（设置 TZ 之前）：部署服务器默认 UTC 时 time.timezone == 0，
+# 用于修正历史错位数据；本地开发（东八区）time.timezone != 0，不受影响
+import time as _time
+_SRV_WAS_UTC = (_time.timezone == 0)
+
+# 统一使用中国时区（Asia/Shanghai），避免部署服务器默认 UTC 导致时间偏移 8 小时
+os.environ["TZ"] = "Asia/Shanghai"
+try:
+    _time.tzset()
+except AttributeError:
+    pass
 
 from app.database import engine, Base, SessionLocal
 from app.routers import sessions, cockpit, ai, platforms, feishu, logistics, auth, customer
@@ -24,6 +37,70 @@ def _migrate_messages_confidence():
             conn.execute(text("ALTER TABLE messages ADD COLUMN confidence INTEGER"))
 
 _migrate_messages_confidence()
+
+
+# 一次性时区迁移：Railway 服务器此前为 UTC 时区，历史 created_at / time 字段均偏早 8 小时，
+# 切换到 Asia/Shanghai 后统一 +8 小时补齐（幂等：PRAGMA user_version 标记已执行）
+def _migrate_utc_time_offset():
+    if not _SRV_WAS_UTC:
+        return
+    from sqlalchemy import text
+    from datetime import timedelta
+    from app.models import Session as SessionModel, Message, Order, LogisticsTrack
+    try:
+        with engine.connect() as conn:
+            ver = conn.execute(text("PRAGMA user_version")).scalar() or 0
+        if ver >= 1:
+            return
+
+        db = SessionLocal()
+        try:
+            delta = timedelta(hours=8)
+
+            def fix_hhmm(s):
+                """HH:MM 字符串 +8 小时（跨天取模）"""
+                if s and ":" in s:
+                    parts = s.split(":")
+                    try:
+                        h, m = int(parts[0]), int(parts[1])
+                        return f"{(h + 8) % 24:02d}:{m:02d}"
+                    except (ValueError, IndexError):
+                        pass
+                return s
+
+            n = 0
+            for s in db.query(SessionModel).all():
+                if s.created_at:
+                    s.created_at += delta
+                    s.updated_at += delta
+                if s.time:
+                    s.time = fix_hhmm(s.time)
+                n += 1
+            for m in db.query(Message).all():
+                if m.created_at:
+                    m.created_at += delta
+                n += 1
+            for o in db.query(Order).all():
+                if o.created_at:
+                    o.created_at += delta
+                n += 1
+            for t in db.query(LogisticsTrack).all():
+                if t.created_at:
+                    t.created_at += delta
+                n += 1
+            db.commit()
+            with engine.begin() as conn:
+                conn.execute(text("PRAGMA user_version = 1"))
+            import logging
+            logging.getLogger("uvicorn.error").info(f"✅ 时区迁移完成：已修正 {n} 条历史数据 (+8小时)")
+        finally:
+            db.close()
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn.error").error(f"时区迁移失败: {e}")
+
+
+_migrate_utc_time_offset()
 
 # 初始化默认测试账号 admin / password
 def _init_default_user():
