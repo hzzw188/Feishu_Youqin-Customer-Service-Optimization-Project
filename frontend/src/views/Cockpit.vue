@@ -488,8 +488,10 @@ function initHourChart() {
 
   const hourlyData = store.summary?.hourly || []
   const hours = hourlyData.map(h => h.hour)
-  const counts = hourlyData.map(h => h.count)
-  const maxCount = Math.max(...counts, 0)
+  const rawCounts = hourlyData.map(h => h.count)
+  // 0 值替换为 null：不渲染柱体，避免圆角柱在无会话时段残留微小色块
+  const counts = rawCounts.map(c => (c > 0 ? c : null))
+  const maxCount = Math.max(...rawCounts, 0)
   const yMax = Math.max(5, Math.ceil((maxCount + 1) * 1.1))
 
   hourChart.setOption({
@@ -497,7 +499,7 @@ function initHourChart() {
       trigger: 'axis',
       backgroundColor: '#0F172A', borderColor: 'transparent',
       textStyle: { color: '#fff', fontSize: 12 },
-      formatter: (params: any) => `${params[0].axisValue}点<br/>会话数：${params[0].data} 个`,
+      formatter: (params: any) => `${params[0].axisValue}点<br/>会话数：${params[0].data ?? 0} 个`,
     },
     grid: { left: 36, right: 10, top: 34, bottom: 22 },
     xAxis: {
