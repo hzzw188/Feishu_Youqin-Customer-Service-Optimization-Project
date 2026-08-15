@@ -275,6 +275,15 @@ def _ai_analyze(customer_message: str, session_score: int = 50, session_context:
             segment = "高风险 · 需人工"
             value_desc = "🔴 高风险，必须立即人工介入"
 
+    # 例外：售前商品类问题不受会话负面上下文牵连，只要消息本身不命中投诉/退款关键词，仍允许 AI 直接回答
+    autoable_intents = {'产品咨询', '优惠咨询', '安装指导', '商品推荐', '支付咨询',
+                        '会员咨询', '发票咨询', '商品对比', '物流查询', '退换咨询'}
+    if need_manual and intent in autoable_intents and not any(kw in customer_message for kw in manual_keywords):
+        need_manual = False
+        can_auto = True
+        if not auto_answer:
+            auto_answer = random.choice(DEFAULT_REPLIES)
+
     if need_manual:
         can_auto = False
         auto_answer = ""
