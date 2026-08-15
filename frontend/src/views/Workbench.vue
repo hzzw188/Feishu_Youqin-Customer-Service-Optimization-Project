@@ -750,6 +750,11 @@ function startMsgPolling() {
   msgPollTimer = window.setInterval(async () => {
     if (!store.currentSession) return
     const appended = await store.pollCurrentMessages()
+    if (store.needsHumanTip) {
+      const intent = store.currentSession?.intent || '待识别'
+      ElMessage.warning(`📩 客户发来新消息（${intent}），需人工处理，AI已生成${store.replies.length}条推荐话术`)
+      store.needsHumanTip = false
+    }
     if (appended) scrollToBottom()
   }, 3000)
 }

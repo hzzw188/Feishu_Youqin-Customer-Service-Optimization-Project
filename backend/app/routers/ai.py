@@ -538,6 +538,25 @@ def analyze_customer_message(
             "created_at": auto_msg.created_at.isoformat(),
             "confidence": conf,
         }
+    elif not analysis["can_auto_answer"]:
+        # 需人工处理：插入"正在转接人工客服"提示消息（工作台/客户端聊天均可看到）
+        transfer_msg = Message(
+            session_id=session_id,
+            dir="left",
+            text="您的问题我需要转接人工客服为您处理，请稍等片刻～",
+            type="ai",
+        )
+        db.add(transfer_msg)
+        db.flush()
+        auto_answer_msg = {
+            "id": transfer_msg.id,
+            "dir": transfer_msg.dir,
+            "text": transfer_msg.text,
+            "type": transfer_msg.type,
+            "has_product": False,
+            "created_at": transfer_msg.created_at.isoformat(),
+            "confidence": None,
+        }
 
     # 保存推荐话术到Reply表（持久化，切换会话不丢失）
     db.query(Reply).filter(Reply.session_id == session_id).delete()

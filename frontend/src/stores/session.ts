@@ -41,6 +41,7 @@ export const useSessionStore = defineStore('session', () => {
   const loading = ref(false)
   const simulating = ref(false)        // 是否正在模拟中
   const aiThinking = ref(false)        // AI正在思考（模拟客户消息后等待AI分析）
+  const needsHumanTip = ref(false)       // 客户端消息判定需人工时，提示工作台坐席
   let simTimer: ReturnType<typeof setInterval> | null = null
 
   /** 会话详情缓存：sessionId -> SessionCache */
@@ -572,6 +573,7 @@ export const useSessionStore = defineStore('session', () => {
             currentSession.value.value_desc = sessionDetail.value_desc
             currentSession.value.tab = sessionDetail.tab
             currentSession.value.tags = sessionDetail.tags
+            needsHumanTip.value = sessionDetail.tab === 'wait'
           }
           // 用时间戳生成唯一 id，确保 Vue 重建 DOM 触发进场动画
           const replyBatch = Date.now()
@@ -606,7 +608,7 @@ export const useSessionStore = defineStore('session', () => {
 
   return {
     sessions, currentSession, messages, orders, replies, logistics,
-    currentTab, searchKeyword, loading, simulating, aiThinking,
+    currentTab, searchKeyword, loading, simulating, aiThinking, needsHumanTip,
     filteredSessions, tabCounts,
     fetchSessions, loadSession, sendMessage, sendSystemMessage, transferSession, markRisk, endSession,
     clearMessages, deleteSession, clearAll, urgeLogistics, pollCurrentMessages,
